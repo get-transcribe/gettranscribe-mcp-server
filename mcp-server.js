@@ -10,21 +10,18 @@ import { createServer } from 'http';
 
 // Configuration from environment variables
 const API_URL = process.env.GETTRANSCRIBE_API_URL || 'https://gettranscribe.ai';
-const API_KEY = process.env.GETTRANSCRIBE_API_KEY;
+const DEFAULT_API_KEY = process.env.GETTRANSCRIBE_API_KEY;
 
-if (!API_KEY) {
-  console.error('❌ GETTRANSCRIBE_API_KEY environment variable is required');
-  process.exit(1);
+// Helper function to create client with API key
+function createClient(apiKey) {
+  return axios.create({
+    baseURL: API_URL,
+    headers: {
+      'x-api-key': apiKey,
+      'Content-Type': 'application/json'
+    }
+  });
 }
-
-// Create HTTP client for GetTranscribe API
-const client = axios.create({
-  baseURL: API_URL,
-  headers: {
-    'x-api-key': API_KEY,
-    'Content-Type': 'application/json'
-  }
-});
 
 // Create MCP server
 const mcpServer = new Server(
@@ -66,6 +63,10 @@ const TOOLS = [
         include_segments: {
           type: "boolean",
           description: "Include transcription segments with timestamps (default: false)"
+        },
+        api_key: {
+          type: "string",
+          description: "Optional GetTranscribe API key (overrides server default)"
         }
       },
       required: ["url"]
@@ -80,6 +81,10 @@ const TOOLS = [
         transcription_id: {
           type: "number",
           description: "ID of the transcription to retrieve"
+        },
+        api_key: {
+          type: "string",
+          description: "Optional GetTranscribe API key (overrides server default)"
         }
       },
       required: ["transcription_id"]
@@ -106,6 +111,10 @@ const TOOLS = [
         skip: {
           type: "number", 
           description: "Number of results to skip for pagination"
+        },
+        api_key: {
+          type: "string",
+          description: "Optional GetTranscribe API key (overrides server default)"
         }
       }
     }
@@ -123,6 +132,10 @@ const TOOLS = [
         parent_id: {
           type: "number",
           description: "Optional parent folder ID for nested structure"
+        },
+        api_key: {
+          type: "string",
+          description: "Optional GetTranscribe API key (overrides server default)"
         }
       },
       required: ["name"]
@@ -137,6 +150,10 @@ const TOOLS = [
         folder_id: {
           type: "number",
           description: "ID of the folder to retrieve"
+        },
+        api_key: {
+          type: "string",
+          description: "Optional GetTranscribe API key (overrides server default)"
         }
       },
       required: ["folder_id"]
@@ -159,6 +176,10 @@ const TOOLS = [
         skip: {
           type: "number",
           description: "Number of results to skip for pagination"
+        },
+        api_key: {
+          type: "string",
+          description: "Optional GetTranscribe API key (overrides server default)"
         }
       }
     }
@@ -179,12 +200,32 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     console.error(`🚀 [MCP] Calling tool: ${name}`);
 
+    // Get API key from client args or use default
+    const clientApiKey = args?.api_key;
+    const apiKey = clientApiKey || DEFAULT_API_KEY;
+
+    if (!apiKey) {
+      return {
+        content: [{
+          type: "text",
+          text: `❌ API key required. Please provide api_key parameter or set GETTRANSCRIBE_API_KEY environment variable.`
+        }],
+        isError: true
+      };
+    }
+
+    // Create client with the appropriate API key
+    const client = createClient(apiKey);
+
+    // Remove api_key from args before sending to backend
+    const { api_key, ...cleanArgs } = args || {};
+
     // Make request to GetTranscribe MCP service
     const response = await client.post('/mcp', {
       method: 'tools/call',
       params: {
         name,
-        arguments: args
+        arguments: cleanArgs
       }
     });
 
@@ -212,7 +253,7 @@ const sessions = new Map();
 async function main() {
   console.error('🚀 Starting GetTranscribe MCP Server...');
   console.error(`📡 API URL: ${API_URL}`);
-  console.error(`🔑 API Key: ${API_KEY ? '***' + API_KEY.slice(-4) : 'NOT SET'}`);
+  console.error(`🔑 Default API Key: ${DEFAULT_API_KEY ? '***' + DEFAULT_API_KEY.slice(-4) : 'NOT SET (clients must provide api_key parameter)'}`);
 
   // Decide transport: HTTP if MCP_TRANSPORT=http or PORT is set, otherwise STDIO
   const transportMode = (process.env.MCP_TRANSPORT || '').toLowerCase();
