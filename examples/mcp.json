@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "gettranscribe": {
+      "command": "npx",
+      "args": ["-y", "gettranscribe-mcp@latest"],
+      "env": {
+        "GETTRANSCRIBE_API_KEY": "your_api_key_here"
+      }
+    }
+  }
+}

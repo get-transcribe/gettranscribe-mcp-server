@@ -1,0 +1,33 @@
+{
+  "name": "gettranscribe-mcp",
+  "version": "1.1.1",
+  "description": "MCP server for GetTranscribe - AI video transcription service",
+  "main": "mcp-server.js",
+  "bin": {
+    "gettranscribe-mcp": "./mcp-server.js"
+  },
+  "type": "module",
+  "scripts": {
+    "start": "node mcp-server.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "transcription",
+    "ai",
+    "video",
+    "youtube",
+    "instagram",
+    "tiktok"
+  ],
+  "author": "Daniel Vengoechea <daniel@gettranscribe.ai>",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.18.1",
+    "axios": "^1.7.7"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "homepage": "https://gettranscribe.ai"
+}
