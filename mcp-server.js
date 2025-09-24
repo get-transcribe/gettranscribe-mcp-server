@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import axios from 'axios';
+import { randomUUID } from 'crypto';
 import { createServer } from 'http';
 
 // Configuration from environment variables
@@ -203,77 +205,134 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
+// Session storage for Streamable HTTP transport
+const sessions = new Map();
+
 // Start the server
 async function main() {
   console.error('🚀 Starting GetTranscribe MCP Server...');
   console.error(`📡 API URL: ${API_URL}`);
   console.error(`🔑 API Key: ${API_KEY ? '***' + API_KEY.slice(-4) : 'NOT SET'}`);
 
-  // Decide transport: SSE if MCP_TRANSPORT=sse or PORT is set, otherwise STDIO
+  // Decide transport: HTTP if MCP_TRANSPORT=http or PORT is set, otherwise STDIO
   const transportMode = (process.env.MCP_TRANSPORT || '').toLowerCase();
-  const useSSE = transportMode === 'sse' || !!process.env.PORT;
+  const useHTTP = transportMode === 'http' || transportMode === 'sse' || !!process.env.PORT;
 
-  if (useSSE) {
+  if (useHTTP) {
     const port = Number(process.env.PORT || 8080);
-    const ssePath = process.env.MCP_SSE_PATH || '/mcp/sse';
+    const mcpPath = process.env.MCP_PATH || '/mcp';
 
     const httpServer = createServer(async (req, res) => {
       try {
-        if (req.method === 'GET' && req.url && (req.url === ssePath || req.url.startsWith(`${ssePath}?`))) {
-          console.error('🔗 [SSE] New connection attempt');
-          
-          // Set SSE headers
-          res.writeHead(200, {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
-          });
-          
-          // Send initial MCP handshake
-          const initMessage = {
-            jsonrpc: "2.0",
-            id: 1,
-            method: "initialize",
-            params: {
-              protocolVersion: "2024-11-05",
-              capabilities: { tools: {} },
-              clientInfo: { name: "gettranscribe", version: "1.0.0" }
-            }
-          };
-          
-          res.write(`data: ${JSON.stringify(initMessage)}\n\n`);
-          console.error('✅ [SSE] MCP connection established');
-          
-          // Keep connection alive
-          const keepAlive = setInterval(() => {
+        // Add CORS headers
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Mcp-Session-Id, Last-Event-ID');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+
+        // Handle preflight requests
+        if (req.method === 'OPTIONS') {
+          res.writeHead(200);
+          res.end();
+          return;
+        }
+
+        // Parse URL and session ID
+        const url = new URL(req.url, `http://localhost:${port}`);
+        const sessionId = req.headers['mcp-session-id'];
+
+        if (req.method === 'POST' && url.pathname === mcpPath) {
+          // Handle Streamable HTTP POST requests (client-to-server messages)
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
             try {
-              res.write('data: {"jsonrpc":"2.0","method":"ping"}\n\n');
-            } catch (e) {
-              clearInterval(keepAlive);
+              const message = JSON.parse(body);
+              console.error(`📨 [HTTP] Received message:`, message.method || 'response');
+
+              // Check if this is an initialization request
+              if (message.method === 'initialize') {
+                // Create new session
+                const newSessionId = randomUUID();
+                sessions.set(newSessionId, { createdAt: Date.now() });
+                
+                // Create SSE transport for this session
+                const transport = new SSEServerTransport(mcpPath, res);
+                await mcpServer.connect(transport);
+                
+                // Set session header
+                res.setHeader('Mcp-Session-Id', newSessionId);
+                console.error(`🔑 [HTTP] Created session: ${newSessionId}`);
+                return;
+              }
+
+              // Validate session for non-initialization requests
+              if (!sessionId || !sessions.has(sessionId)) {
+                res.writeHead(404, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Session not found' }));
+                return;
+              }
+
+              // For notifications and responses, return 202 Accepted
+              if (!message.id || message.method === undefined) {
+                res.writeHead(202);
+                res.end();
+                return;
+              }
+
+              // For requests, use SSE transport
+              const transport = new SSEServerTransport(mcpPath, res);
+              await mcpServer.connect(transport);
+
+            } catch (error) {
+              console.error('❌ [HTTP] Error processing POST:', error);
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Invalid JSON-RPC message' }));
             }
-          }, 30000);
-          
-          // Clean up on disconnect
-          req.on('close', () => {
-            clearInterval(keepAlive);
-            console.error('🔌 [SSE] Client disconnected');
           });
+
+        } else if (req.method === 'GET' && url.pathname === mcpPath) {
+          // Handle SSE stream for server-to-client messages
+          const lastEventId = req.headers['last-event-id'];
           
-          req.on('error', () => {
-            clearInterval(keepAlive);
-          });
-        } else if (req.method === 'GET' && (req.url === '/' || req.url === '/health')) {
+          if (sessionId && !sessions.has(sessionId)) {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Session not found' }));
+            return;
+          }
+
+          console.error('🔗 [SSE] Opening stream', sessionId ? `for session ${sessionId}` : '(no session)');
+          
+          const transport = new SSEServerTransport(mcpPath, res);
+          await mcpServer.connect(transport);
+
+        } else if (req.method === 'DELETE' && url.pathname === mcpPath && sessionId) {
+          // Handle session termination
+          if (sessions.has(sessionId)) {
+            sessions.delete(sessionId);
+            console.error(`🗑️ [HTTP] Terminated session: ${sessionId}`);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ status: 'session terminated' }));
+          } else {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Session not found' }));
+          }
+
+        } else if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/health')) {
+          // Health check endpoint
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ status: 'ok', transport: 'sse' }));
+          res.end(JSON.stringify({ 
+            status: 'ok', 
+            transport: 'streamable-http',
+            sessions: sessions.size 
+          }));
+
         } else {
           res.writeHead(404, { 'Content-Type': 'text/plain' });
           res.end('Not Found');
         }
+
       } catch (err) {
-        console.error('❌ HTTP server error:', err?.message || err);
+        console.error('❌ [HTTP] Server error:', err?.message || err);
         if (!res.headersSent) {
           res.writeHead(500, { 'Content-Type': 'text/plain' });
           res.end('Internal Server Error');
@@ -281,11 +340,25 @@ async function main() {
       }
     });
 
+    // Clean up expired sessions every 5 minutes
+    setInterval(() => {
+      const now = Date.now();
+      const maxAge = 30 * 60 * 1000; // 30 minutes
+      for (const [sessionId, session] of sessions.entries()) {
+        if (now - session.createdAt > maxAge) {
+          sessions.delete(sessionId);
+          console.error(`🧹 [HTTP] Cleaned up expired session: ${sessionId}`);
+        }
+      }
+    }, 5 * 60 * 1000);
+
     httpServer.listen(port, () => {
-      console.error(`✅ GetTranscribe MCP SSE server listening on port ${port}`);
-      console.error(`🔗 SSE endpoint: http://localhost:${port}${ssePath}`);
+      console.error(`✅ GetTranscribe MCP Server (Streamable HTTP) listening on port ${port}`);
+      console.error(`🔗 MCP endpoint: http://localhost:${port}${mcpPath}`);
     });
+
   } else {
+    // Use stdio transport
     const transport = new StdioServerTransport();
     await mcpServer.connect(transport);
     console.error('✅ GetTranscribe MCP Server (stdio) started successfully');

@@ -1,16 +1,22 @@
-# GetTranscribe MCP Server
+o w# GetTranscribe MCP Server
 
 MCP (Model Context Protocol) server for [GetTranscribe](https://gettranscribe.ai) - AI-powered video transcription service. This allows you to interact with your GetTranscribe transcriptions through AI assistants like Claude, ChatGPT, and other MCP-compatible clients.
+
+**Supports both MCP transports:**
+- **stdio** - For standard MCP client integration
+- **Streamable HTTP** - For web-based and advanced clients
 
 ## 🚀 Quick Start
 
 ### Installation
 
 ```bash
-npm install -g gettranscribe-mcp
+npm install -g gettranscribe-mcp-server
 ```
 
 ### Configuration
+
+#### For stdio transport (most common):
 
 Add to your MCP client configuration (e.g., `~/.cursor/mcp.json`):
 
@@ -26,6 +32,15 @@ Add to your MCP client configuration (e.g., `~/.cursor/mcp.json`):
   }
 }
 ```
+
+#### For Streamable HTTP transport:
+
+Start the server:
+```bash
+MCP_TRANSPORT=http PORT=8080 GETTRANSCRIBE_API_KEY=your_key gettranscribe-mcp
+```
+
+Then configure your client to connect to `http://localhost:8080/mcp`
 
 ### Get Your API Key
 
@@ -120,6 +135,36 @@ Welcome to our video about AI and machine learning...
 
 - **`GETTRANSCRIBE_API_KEY`** (required) - Your GetTranscribe API key
 - **`GETTRANSCRIBE_API_URL`** (optional) - API endpoint (defaults to https://gettranscribe.ai)
+- **`MCP_TRANSPORT`** (optional) - Transport mode: "stdio" (default) or "http"
+- **`PORT`** (optional) - HTTP server port (default: 8080, only for HTTP transport)
+- **`MCP_PATH`** (optional) - HTTP endpoint path (default: "/mcp", only for HTTP transport)
+
+## 🔧 Transport Configuration
+
+### stdio Transport (Default)
+```bash
+# Automatic if no transport specified
+node mcp-server.js
+
+# Or explicitly
+MCP_TRANSPORT=stdio node mcp-server.js
+```
+
+### Streamable HTTP Transport
+```bash
+# Start HTTP server on port 8080
+MCP_TRANSPORT=http PORT=8080 node mcp-server.js
+
+# Custom endpoint path
+MCP_TRANSPORT=http PORT=3000 MCP_PATH=/api/mcp node mcp-server.js
+```
+
+The HTTP transport supports:
+- Session management with `Mcp-Session-Id` headers
+- POST requests for client-to-server messages
+- GET requests for server-to-client SSE streams
+- DELETE requests for session termination
+- Health check endpoint at `/health`
 
 ## 📋 Supported Platforms
 

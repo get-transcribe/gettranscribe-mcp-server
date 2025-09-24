@@ -1,27 +1,32 @@
 {
-  "name": "gettranscribe-mcp-lambda",
-  "version": "1.0.0",
-  "description": "AWS Lambda MCP server for GetTranscribe",
+  "name": "gettranscribe-mcp",
+  "version": "1.2.0",
+  "description": "MCP server for GetTranscribe supporting both stdio and Streamable HTTP transports",
   "type": "module",
-  "main": "lambda-handler.js",
+  "main": "mcp-server.js",
+  "bin": {
+    "gettranscribe-mcp": "./mcp-server.js"
+  },
   "scripts": {
-    "build": "zip -r gettranscribe-mcp-lambda.zip lambda-handler.js package.json node_modules/",
-    "deploy": "aws lambda create-function --function-name gettranscribe-mcp --runtime nodejs18.x --role arn:aws:iam::YOUR_ACCOUNT:role/lambda-execution-role --handler lambda-handler.handler --zip-file fileb://gettranscribe-mcp-lambda.zip",
-    "update": "aws lambda update-function-code --function-name gettranscribe-mcp --zip-file fileb://gettranscribe-mcp-lambda.zip"
+    "start": "node mcp-server.js",
+    "start:stdio": "MCP_TRANSPORT=stdio node mcp-server.js",
+    "start:http": "MCP_TRANSPORT=http PORT=8080 node mcp-server.js",
+    "test": "echo 'No tests yet' && exit 0"
   },
   "dependencies": {
-    "@aws-lambda-powertools/commons": "^2.27.0",
+    "@modelcontextprotocol/sdk": "^1.0.0",
     "axios": "^1.7.7"
   },
   "engines": {
     "node": ">=18.0.0"
   },
   "keywords": [
-    "aws",
-    "lambda",
     "mcp",
-    "serverless",
+    "model-context-protocol",
     "transcription",
+    "gettranscribe",
+    "stdio",
+    "http",
     "sse"
   ]
 }
