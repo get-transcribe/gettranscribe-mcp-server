@@ -1,33 +1,27 @@
 {
-  "name": "gettranscribe-mcp",
-  "version": "1.1.1",
-  "description": "MCP server for GetTranscribe - AI video transcription service",
-  "main": "mcp-server.js",
-  "bin": {
-    "gettranscribe-mcp": "./mcp-server.js"
-  },
+  "name": "gettranscribe-mcp-lambda",
+  "version": "1.0.0",
+  "description": "AWS Lambda MCP server for GetTranscribe",
   "type": "module",
+  "main": "lambda-handler.js",
   "scripts": {
-    "start": "node mcp-server.js"
+    "build": "zip -r gettranscribe-mcp-lambda.zip lambda-handler.js package.json node_modules/",
+    "deploy": "aws lambda create-function --function-name gettranscribe-mcp --runtime nodejs18.x --role arn:aws:iam::YOUR_ACCOUNT:role/lambda-execution-role --handler lambda-handler.handler --zip-file fileb://gettranscribe-mcp-lambda.zip",
+    "update": "aws lambda update-function-code --function-name gettranscribe-mcp --zip-file fileb://gettranscribe-mcp-lambda.zip"
   },
-  "keywords": [
-    "mcp",
-    "model-context-protocol",
-    "transcription",
-    "ai",
-    "video",
-    "youtube",
-    "instagram",
-    "tiktok"
-  ],
-  "author": "Daniel Vengoechea <daniel@gettranscribe.ai>",
-  "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.18.1",
+    "@aws-lambda-powertools/commons": "^2.27.0",
     "axios": "^1.7.7"
   },
   "engines": {
     "node": ">=18.0.0"
   },
-  "homepage": "https://gettranscribe.ai"
+  "keywords": [
+    "aws",
+    "lambda",
+    "mcp",
+    "serverless",
+    "transcription",
+    "sse"
+  ]
 }

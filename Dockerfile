@@ -22,6 +22,15 @@ USER mcpserver
 
 # Set environment variables
 ENV NODE_ENV=production
+ENV MCP_TRANSPORT=sse
+ENV PORT=8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8080/health || exit 1
+
+# Expose port
+EXPOSE 8080
 
 # Start the MCP server
 CMD ["node", "mcp-server.js"]

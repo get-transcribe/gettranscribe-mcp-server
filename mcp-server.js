@@ -4,6 +4,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import axios from 'axios';
+import { createServer } from 'http';
 
 // Configuration from environment variables
 const API_URL = process.env.GETTRANSCRIBE_API_URL || 'https://gettranscribe.ai';
@@ -24,7 +25,7 @@ const client = axios.create({
 });
 
 // Create MCP server
-const server = new Server(
+const mcpServer = new Server(
   {
     name: 'gettranscribe',
     version: '1.0.0',
@@ -163,14 +164,14 @@ const TOOLS = [
 ];
 
 // List tools handler
-server.setRequestHandler(ListToolsRequestSchema, async () => {
+mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: TOOLS
   };
 });
 
 // Call tool handler
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
   try {
@@ -207,11 +208,88 @@ async function main() {
   console.error('🚀 Starting GetTranscribe MCP Server...');
   console.error(`📡 API URL: ${API_URL}`);
   console.error(`🔑 API Key: ${API_KEY ? '***' + API_KEY.slice(-4) : 'NOT SET'}`);
-  
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  
-  console.error('✅ GetTranscribe MCP Server started successfully');
+
+  // Decide transport: SSE if MCP_TRANSPORT=sse or PORT is set, otherwise STDIO
+  const transportMode = (process.env.MCP_TRANSPORT || '').toLowerCase();
+  const useSSE = transportMode === 'sse' || !!process.env.PORT;
+
+  if (useSSE) {
+    const port = Number(process.env.PORT || 8080);
+    const ssePath = process.env.MCP_SSE_PATH || '/mcp/sse';
+
+    const httpServer = createServer(async (req, res) => {
+      try {
+        if (req.method === 'GET' && req.url && (req.url === ssePath || req.url.startsWith(`${ssePath}?`))) {
+          console.error('🔗 [SSE] New connection attempt');
+          
+          // Set SSE headers
+          res.writeHead(200, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+          });
+          
+          // Send initial MCP handshake
+          const initMessage = {
+            jsonrpc: "2.0",
+            id: 1,
+            method: "initialize",
+            params: {
+              protocolVersion: "2024-11-05",
+              capabilities: { tools: {} },
+              clientInfo: { name: "gettranscribe", version: "1.0.0" }
+            }
+          };
+          
+          res.write(`data: ${JSON.stringify(initMessage)}\n\n`);
+          console.error('✅ [SSE] MCP connection established');
+          
+          // Keep connection alive
+          const keepAlive = setInterval(() => {
+            try {
+              res.write('data: {"jsonrpc":"2.0","method":"ping"}\n\n');
+            } catch (e) {
+              clearInterval(keepAlive);
+            }
+          }, 30000);
+          
+          // Clean up on disconnect
+          req.on('close', () => {
+            clearInterval(keepAlive);
+            console.error('🔌 [SSE] Client disconnected');
+          });
+          
+          req.on('error', () => {
+            clearInterval(keepAlive);
+          });
+        } else if (req.method === 'GET' && (req.url === '/' || req.url === '/health')) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ status: 'ok', transport: 'sse' }));
+        } else {
+          res.writeHead(404, { 'Content-Type': 'text/plain' });
+          res.end('Not Found');
+        }
+      } catch (err) {
+        console.error('❌ HTTP server error:', err?.message || err);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'text/plain' });
+          res.end('Internal Server Error');
+        }
+      }
+    });
+
+    httpServer.listen(port, () => {
+      console.error(`✅ GetTranscribe MCP SSE server listening on port ${port}`);
+      console.error(`🔗 SSE endpoint: http://localhost:${port}${ssePath}`);
+    });
+  } else {
+    const transport = new StdioServerTransport();
+    await mcpServer.connect(transport);
+    console.error('✅ GetTranscribe MCP Server (stdio) started successfully');
+  }
 }
 
 main().catch((error) => {
