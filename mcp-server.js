@@ -412,10 +412,8 @@ async function main() {
       console.error('📨 [POST] Received MCP request (stateless)');
       
       try {
-        // Extract API key from multiple possible sources for HTTP requests
-        const httpApiKey = req.headers['x-api-key'] || 
-                          req.headers['authorization']?.replace(/^Bearer\s+/i, '') ||
-                          req.headers['oauth-client-secret'];
+        // Extract API key from header for HTTP requests
+        const httpApiKey = req.headers['x-api-key'];
         
         // Create a new instance of transport and server for each request
         // to ensure complete isolation and avoid request ID collisions
@@ -487,11 +485,7 @@ async function main() {
         api_url: API_URL,
         endpoint: `http://localhost:${port}${mcpPath}`,
         active_sessions: Object.keys(transports).length,
-        sse_sessions: Object.keys(sseTransports).length,
-        authentication: {
-          methods: ['x-api-key header', 'Authorization Bearer token', 'OAuth Client Secret'],
-          instructions: 'Provide your GetTranscribe API key via x-api-key header, Authorization header, or OAuth Client Secret field'
-        }
+        sse_sessions: Object.keys(sseTransports).length
       });
     });
 
@@ -501,9 +495,7 @@ async function main() {
       
       try {
         const sessionId = randomUUID();
-        const httpApiKey = req.headers['x-api-key'] || 
-                          req.headers['authorization']?.replace(/^Bearer\s+/i, '') ||
-                          req.headers['oauth-client-secret'];
+        const httpApiKey = req.headers['x-api-key'];
         const server = createServerInstance(httpApiKey);
         const transport = new SSEServerTransport('/messages', res);
         
