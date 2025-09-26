@@ -8,6 +8,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import axios from 'axios';
 import { randomUUID } from 'crypto';
 import express from 'express';
+import jwt from 'jsonwebtoken';
 
 // Configuration from environment variables
 const API_URL = process.env.GETTRANSCRIBE_API_URL || 'https://www.gettranscribe.ai';
