@@ -13,6 +13,12 @@ import express from 'express';
 const API_URL = process.env.GETTRANSCRIBE_API_URL || 'https://www.gettranscribe.ai';
 const DEFAULT_API_KEY = process.env.GETTRANSCRIBE_API_KEY;
 
+// OAuth Configuration
+const OAUTH_CLIENT_ID = process.env.OAUTH_CLIENT_ID || 'gettranscribe-mcp';
+const OAUTH_CLIENT_SECRET = process.env.OAUTH_CLIENT_SECRET || 'mcp-secret-2024';
+const JWT_SECRET = process.env.JWT_SECRET || 'gettranscribe-jwt-secret-2024';
+const OAUTH_REDIRECT_URI = process.env.OAUTH_REDIRECT_URI;
+
 // Helper function to create client with API key
 function createClient(apiKey) {
   return axios.create({
@@ -23,6 +29,34 @@ function createClient(apiKey) {
     }
   });
 }
+
+// OAuth helper functions
+function generateAuthCode() {
+  return randomUUID();
+}
+
+function generateAccessToken(userApiKey) {
+  return jwt.sign(
+    { 
+      api_key: userApiKey,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24) // 24 hours
+    },
+    JWT_SECRET
+  );
+}
+
+function verifyAccessToken(token) {
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (error) {
+    return null;
+  }
+}
+
+// In-memory storage for auth codes (in production, use Redis or database)
+const authCodes = new Map();
+const accessTokens = new Map();
 
 // Create MCP server
 const mcpServer = new Server(
@@ -240,6 +274,140 @@ async function main() {
       next();
     });
 
+    // OAuth Endpoints
+    
+    // OAuth Authorization endpoint
+    app.get('/oauth/authorize', (req, res) => {
+      const { client_id, redirect_uri, state, response_type } = req.query;
+      
+      console.error(`🔐 [OAuth] Authorization request: client_id=${client_id}, redirect_uri=${redirect_uri}`);
+      
+      if (client_id !== OAUTH_CLIENT_ID) {
+        return res.status(400).json({ error: 'invalid_client_id' });
+      }
+      
+      if (response_type !== 'code') {
+        return res.status(400).json({ error: 'unsupported_response_type' });
+      }
+      
+      // Show authorization form
+      res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>GetTranscribe MCP Authorization</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto; padding: 40px; background: #f5f5f5; }
+            .container { max-width: 400px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            h1 { color: #6942e2; margin-bottom: 20px; }
+            input, button { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; }
+            button { background: #6942e2; color: white; border: none; cursor: pointer; }
+            button:hover { background: #5a38c7; }
+            .info { background: #f0f0f0; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>🎥 GetTranscribe MCP</h1>
+            <div class="info">
+              <strong>ChatGPT/Claude</strong> wants to access your GetTranscribe account to search and fetch video transcriptions.
+            </div>
+            <form method="POST" action="/oauth/authorize">
+              <input type="hidden" name="client_id" value="${client_id}">
+              <input type="hidden" name="redirect_uri" value="${redirect_uri}">
+              <input type="hidden" name="state" value="${state || ''}">
+              <input type="hidden" name="response_type" value="${response_type}">
+              
+              <label for="api_key">Your GetTranscribe API Key:</label>
+              <input type="password" name="api_key" placeholder="gtr_..." required>
+              
+              <button type="submit">✅ Authorize Access</button>
+            </form>
+            <p style="font-size: 12px; color: #666; text-align: center;">
+              Get your API key from <a href="https://www.gettranscribe.ai" target="_blank">gettranscribe.ai</a>
+            </p>
+          </div>
+        </body>
+        </html>
+      `);
+    });
+    
+    // OAuth Authorization form submission
+    app.post('/oauth/authorize', express.urlencoded({ extended: true }), (req, res) => {
+      const { client_id, redirect_uri, state, api_key } = req.body;
+      
+      console.error(`🔐 [OAuth] Authorization submission: client_id=${client_id}, api_key=${api_key?.slice(0, 8)}...`);
+      
+      if (!api_key || !api_key.startsWith('gtr_')) {
+        return res.status(400).send('Invalid API key format. Must start with "gtr_"');
+      }
+      
+      // Generate authorization code
+      const authCode = generateAuthCode();
+      authCodes.set(authCode, { 
+        api_key, 
+        client_id, 
+        expires: Date.now() + 600000 // 10 minutes
+      });
+      
+      console.error(`🔐 [OAuth] Generated auth code: ${authCode}`);
+      
+      // Redirect back to client with code
+      const redirectUrl = new URL(redirect_uri);
+      redirectUrl.searchParams.set('code', authCode);
+      if (state) redirectUrl.searchParams.set('state', state);
+      
+      res.redirect(redirectUrl.toString());
+    });
+    
+    // OAuth Token endpoint
+    app.post('/oauth/token', (req, res) => {
+      const { grant_type, code, client_id, client_secret } = req.body;
+      
+      console.error(`🔐 [OAuth] Token request: grant_type=${grant_type}, code=${code}, client_id=${client_id}`);
+      
+      if (grant_type !== 'authorization_code') {
+        return res.status(400).json({ error: 'unsupported_grant_type' });
+      }
+      
+      if (client_id !== OAUTH_CLIENT_ID || client_secret !== OAUTH_CLIENT_SECRET) {
+        return res.status(401).json({ error: 'invalid_client' });
+      }
+      
+      const authData = authCodes.get(code);
+      if (!authData || authData.expires < Date.now()) {
+        return res.status(400).json({ error: 'invalid_or_expired_code' });
+      }
+      
+      // Generate access token
+      const accessToken = generateAccessToken(authData.api_key);
+      accessTokens.set(accessToken, authData.api_key);
+      
+      // Clean up auth code
+      authCodes.delete(code);
+      
+      console.error(`🔐 [OAuth] Access token generated successfully`);
+      
+      res.json({
+        access_token: accessToken,
+        token_type: 'Bearer',
+        expires_in: 86400 // 24 hours
+      });
+    });
+    
+    // OAuth endpoint discovery
+    app.get('/.well-known/oauth-authorization-server', (req, res) => {
+      const baseUrl = req.protocol + '://' + req.get('host');
+      res.json({
+        issuer: baseUrl,
+        authorization_endpoint: `${baseUrl}/oauth/authorize`,
+        token_endpoint: `${baseUrl}/oauth/token`,
+        response_types_supported: ['code'],
+        grant_types_supported: ['authorization_code'],
+        code_challenge_methods_supported: []
+      });
+    });
+
     // Store active transports by session ID (for backwards compatibility)
     const transports = {};
     const sseTransports = {}; // For old SSE transport
@@ -412,8 +580,19 @@ async function main() {
       console.error('📨 [POST] Received MCP request (stateless)');
       
       try {
-        // Extract API key from header for HTTP requests
-        const httpApiKey = req.headers['x-api-key'];
+        // Extract API key from header or OAuth token for HTTP requests
+        let httpApiKey = req.headers['x-api-key'];
+        
+        // Check for OAuth Bearer token
+        const authHeader = req.headers['authorization'];
+        if (!httpApiKey && authHeader && authHeader.startsWith('Bearer ')) {
+          const token = authHeader.substring(7);
+          const decoded = verifyAccessToken(token);
+          if (decoded && decoded.api_key) {
+            httpApiKey = decoded.api_key;
+            console.error(`🔐 [OAuth] Using API key from Bearer token`);
+          }
+        }
         
         // Create a new instance of transport and server for each request
         // to ensure complete isolation and avoid request ID collisions
@@ -495,7 +674,19 @@ async function main() {
       
       try {
         const sessionId = randomUUID();
-        const httpApiKey = req.headers['x-api-key'];
+        // Extract API key from header or OAuth token
+        let httpApiKey = req.headers['x-api-key'];
+        
+        // Check for OAuth Bearer token
+        const authHeader = req.headers['authorization'];
+        if (!httpApiKey && authHeader && authHeader.startsWith('Bearer ')) {
+          const token = authHeader.substring(7);
+          const decoded = verifyAccessToken(token);
+          if (decoded && decoded.api_key) {
+            httpApiKey = decoded.api_key;
+            console.error(`🔐 [OAuth] Using API key from Bearer token in SSE`);
+          }
+        }
         const server = createServerInstance(httpApiKey);
         const transport = new SSEServerTransport('/messages', res);
         
