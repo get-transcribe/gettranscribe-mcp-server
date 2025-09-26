@@ -58,6 +58,7 @@ function verifyAccessToken(token) {
 // In-memory storage for auth codes (in production, use Redis or database)
 const authCodes = new Map();
 const accessTokens = new Map();
+const registeredClients = new Map(); // Store dynamically registered clients
 
 // Create MCP server
 const mcpServer = new Server(
@@ -283,7 +284,10 @@ async function main() {
       
       console.error(`🔐 [OAuth] Authorization request: client_id=${client_id}, redirect_uri=${redirect_uri}`);
       
-      if (client_id !== OAUTH_CLIENT_ID) {
+      // Validate client_id - support both hardcoded and dynamically registered clients
+      const isValidClientId = (client_id === OAUTH_CLIENT_ID || registeredClients.has(client_id));
+      
+      if (!isValidClientId) {
         return res.status(400).json({ error: 'invalid_client_id' });
       }
       
@@ -371,7 +375,13 @@ async function main() {
         return res.status(400).json({ error: 'unsupported_grant_type' });
       }
       
-      if (client_id !== OAUTH_CLIENT_ID || client_secret !== OAUTH_CLIENT_SECRET) {
+      // Validate client credentials - support both hardcoded and dynamically registered clients
+      const isValidClient = (
+        (client_id === OAUTH_CLIENT_ID && client_secret === OAUTH_CLIENT_SECRET) ||
+        (registeredClients.has(client_id) && registeredClients.get(client_id).client_secret === client_secret)
+      );
+      
+      if (!isValidClient) {
         return res.status(401).json({ error: 'invalid_client' });
       }
       
@@ -396,6 +406,52 @@ async function main() {
       });
     });
     
+    // OAuth Dynamic Client Registration endpoint (RFC7591)
+    app.post('/oauth/register', (req, res) => {
+      const { client_name, redirect_uris, client_uri } = req.body;
+      
+      console.error(`🔐 [OAuth] Client registration request: client_name=${client_name}, redirect_uris=${JSON.stringify(redirect_uris)}`);
+      
+      // For ChatGPT/OpenAI, we expect specific patterns
+      const isValidChatGPT = client_name && (
+        client_name.toLowerCase().includes('chatgpt') ||
+        client_name.toLowerCase().includes('openai') ||
+        (redirect_uris && redirect_uris.some(uri => uri.includes('chatgpt.com')))
+      );
+      
+      if (!isValidChatGPT) {
+        return res.status(400).json({
+          error: 'invalid_client_metadata',
+          error_description: 'This registration endpoint is specifically for ChatGPT/OpenAI clients'
+        });
+      }
+      
+      // Generate a unique client_id for this registration
+      const clientId = `chatgpt_${randomUUID()}`;
+      const clientSecret = randomUUID();
+      
+      // Store the registered client
+      registeredClients.set(clientId, {
+        client_secret: clientSecret,
+        client_name: client_name,
+        redirect_uris: redirect_uris || [],
+        created_at: Math.floor(Date.now() / 1000)
+      });
+      
+      console.error(`🔐 [OAuth] Registered new client: ${clientId}`);
+      
+      // Return client credentials (RFC7591 Section 3.2.1)
+      res.status(201).json({
+        client_id: clientId,
+        client_secret: clientSecret,
+        client_id_issued_at: Math.floor(Date.now() / 1000),
+        client_secret_expires_at: 0, // Never expires
+        redirect_uris: redirect_uris || [],
+        client_name: client_name,
+        token_endpoint_auth_method: 'client_secret_post'
+      });
+    });
+    
     // OAuth endpoint discovery
     app.get('/.well-known/oauth-authorization-server', (req, res) => {
       // Use HTTPS in production (when behind reverse proxy like Render)
@@ -405,9 +461,11 @@ async function main() {
         issuer: baseUrl,
         authorization_endpoint: `${baseUrl}/oauth/authorize`,
         token_endpoint: `${baseUrl}/oauth/token`,
+        registration_endpoint: `${baseUrl}/oauth/register`,
         response_types_supported: ['code'],
         grant_types_supported: ['authorization_code'],
-        code_challenge_methods_supported: []
+        code_challenge_methods_supported: ['S256'],
+        token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic']
       });
     });
 
