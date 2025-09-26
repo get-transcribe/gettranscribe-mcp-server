@@ -10,7 +10,7 @@ import { randomUUID } from 'crypto';
 import express from 'express';
 
 // Configuration from environment variables
-const API_URL = process.env.GETTRANSCRIBE_API_URL || 'https://gettranscribe.ai';
+const API_URL = process.env.GETTRANSCRIBE_API_URL || 'https://www.gettranscribe.ai';
 const DEFAULT_API_KEY = process.env.GETTRANSCRIBE_API_KEY;
 
 // Helper function to create client with API key
@@ -312,13 +312,27 @@ async function main() {
               }
             });
 
-            // Transform response to ChatGPT search format
-            const transcriptions = response.data?.content?.[0]?.text ? JSON.parse(response.data.content[0].text) : { data: [] };
-            const results = transcriptions.data?.map((t, index) => ({
-              id: String(t.id || index),
-              title: t.title || t.video_title || `Transcription ${t.id}`,
-              url: t.video_url || `${API_URL}/transcriptions/${t.id}`
-            })) || [];
+            // Extract and parse the transcriptions from the formatted response
+            const responseText = response.data?.content?.[0]?.text || '';
+            
+            // Parse transcription IDs and info from formatted text  
+            // Format: **1. ID: 490** (instagram)... 🔗 https://www.instagram.com/reel/DI4q2F4R2NF/...
+            const transcriptionMatches = responseText.match(/\*\*\d+\. ID: \d+\*\* \([^)]+\)[\s\S]*?🔗 [^\n.]+/g) || [];
+            const results = transcriptionMatches.map(match => {
+              const idMatch = match.match(/\*\*\d+\. ID: (\d+)\*\*/);
+              const platformMatch = match.match(/\*\* \(([^)]+)\)/);
+              const urlMatch = match.match(/🔗 ([^\n]+)/);
+              
+              const id = idMatch?.[1] || 'unknown';
+              const platform = platformMatch?.[1] || 'unknown';
+              const url = urlMatch?.[1]?.replace(/\.\.\.$/, '') || `${API_URL}/transcriptions/${id}`;
+              
+              return {
+                id: id,
+                title: `${platform} Transcription ${id}`,
+                url: url
+              };
+            });
 
             return {
               content: [{
@@ -341,18 +355,18 @@ async function main() {
               }
             });
 
-            // Transform response to ChatGPT fetch format
-            const transcription = response.data?.content?.[0]?.text ? JSON.parse(response.data.content[0].text) : {};
+            // Extract transcription data from formatted response
+            const responseText = response.data?.content?.[0]?.text || '';
+            
+            // For now, return the formatted response as-is for fetch
+            // TODO: Parse the formatted response to extract structured data
             const result = {
-              id: String(transcription.id || transcriptionId),
-              title: transcription.title || transcription.video_title || `Transcription ${transcriptionId}`,
-              text: transcription.transcription || transcription.content || 'No transcription content available',
-              url: transcription.video_url || `${API_URL}/transcriptions/${transcriptionId}`,
+              id: String(transcriptionId),
+              title: `Transcription ${transcriptionId}`,
+              text: responseText,
+              url: `${API_URL}/transcriptions/${transcriptionId}`,
               metadata: {
-                platform: transcription.platform,
-                language: transcription.language,
-                created_at: transcription.created_at,
-                duration: transcription.duration
+                source: 'gettranscribe_mcp'
               }
             };
 
