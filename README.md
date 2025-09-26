@@ -204,30 +204,71 @@ Welcome to our video about AI and machine learning...
 
 ## 🔧 Transport Configuration
 
-### stdio Transport (Default)
+### 📊 Quick Reference
+
+| Transport | Use For | Command | Port |
+|-----------|---------|---------|------|
+| **stdio** | Claude Desktop, VS Code | `npm run start:stdio` | N/A |
+| **HTTP** | ChatGPT, OpenAI API | `npm run start:http` | 8080 |
+| **Development** | Testing | `npm run dev` | 8080 |
+
+### 📟 stdio Transport (Default - for MCP Clients)
+For Claude Desktop, VS Code, and other MCP clients:
+
 ```bash
-# Automatic if no transport specified
+# Default mode - starts in stdio
 node mcp-server.js
 
-# Or explicitly
+# Or explicitly specify stdio
 MCP_TRANSPORT=stdio node mcp-server.js
+
+# With API key
+GETTRANSCRIBE_API_KEY=your_key node mcp-server.js
 ```
 
-### Streamable HTTP Transport
+**Use Case:** Standard MCP client integration
+
+### 🌐 HTTP Transport (for ChatGPT, OpenAI API, Web Clients)
+For ChatGPT connectors, OpenAI API, and web-based access:
+
 ```bash
 # Start HTTP server on port 8080
 MCP_TRANSPORT=http PORT=8080 node mcp-server.js
 
-# Custom endpoint path
+# With API key (optional, can use headers)
+MCP_TRANSPORT=http PORT=8080 GETTRANSCRIBE_API_KEY=your_key node mcp-server.js
+
+# Custom port and endpoint
 MCP_TRANSPORT=http PORT=3000 MCP_PATH=/api/mcp node mcp-server.js
+
+# Production mode
+MCP_TRANSPORT=http PORT=8080 GETTRANSCRIBE_API_URL=https://api.gettranscribe.ai node mcp-server.js
 ```
 
-The HTTP transport supports:
-- Session management with `Mcp-Session-Id` headers
-- POST requests for client-to-server messages
-- GET requests for server-to-client SSE streams
-- DELETE requests for session termination
-- Health check endpoint at `/health`
+**Use Case:** ChatGPT connectors, OpenAI API, browser-based clients
+
+### 🚀 Quick Start Scripts
+```bash
+# For MCP clients (Claude, VS Code)
+npm run start:stdio
+
+# For ChatGPT and OpenAI API
+npm run start:http
+
+# For development
+npm run dev
+```
+
+### 📡 HTTP Transport Features
+The HTTP transport includes:
+- **SSE (Server-Sent Events)** for real-time communication
+- **OAuth 2.0** support for ChatGPT integration
+- **Multiple auth methods:** `x-api-key` header, `Bearer` token, OAuth JWT
+- **Session management** with `Mcp-Session-Id` headers
+- **Health check** endpoint at `/health`
+- **CORS support** for browser clients
+
+> **Note:** HTTP transport automatically includes SSE support. When you start with `MCP_TRANSPORT=http`, the server handles both regular HTTP requests and SSE streams on the same endpoint.
 
 ## 📋 Supported Platforms
 
