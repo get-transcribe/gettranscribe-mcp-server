@@ -398,7 +398,9 @@ async function main() {
     
     // OAuth endpoint discovery
     app.get('/.well-known/oauth-authorization-server', (req, res) => {
-      const baseUrl = req.protocol + '://' + req.get('host');
+      // Use HTTPS in production (when behind reverse proxy like Render)
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+      const baseUrl = protocol + '://' + req.get('host');
       res.json({
         issuer: baseUrl,
         authorization_endpoint: `${baseUrl}/oauth/authorize`,
@@ -665,6 +667,9 @@ async function main() {
 
     // Health check endpoint
     app.get(['/health', '/'], (req, res) => {
+      // Use HTTPS in production (when behind reverse proxy like Render)
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+      const baseUrl = protocol + '://' + req.get('host');
       res.json({
         status: 'ok',
         transport: 'streamable-http',
@@ -673,7 +678,7 @@ async function main() {
         tools: TOOLS.map(t => t.name),
         chatgpt_compatible: true,
         api_url: API_URL,
-        endpoint: `http://localhost:${port}${mcpPath}`,
+        endpoint: `${baseUrl}${mcpPath}`,
         active_sessions: Object.keys(transports).length,
         sse_sessions: Object.keys(sseTransports).length
       });
