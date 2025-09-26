@@ -8,6 +8,25 @@ MCP (Model Context Protocol) server for [GetTranscribe](https://gettranscribe.ai
 
 📖 **See [TRANSPORT-COMPARISON.md](./TRANSPORT-COMPARISON.md) for detailed transport comparison and usage guide.**
 
+## 🔗 Client-Specific Setup
+
+### 🤖 ChatGPT Users
+ChatGPT requires OAuth 2.0 authentication. See **[README-CHATGPT.md](README-CHATGPT.md)** for complete setup guide.
+
+### 🔧 OpenAI API Users
+OpenAI API supports custom headers. You can use `x-api-key` header:
+
+```bash
+curl -X POST https://gettranscribe-mcp-server.onrender.com/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "x-api-key: your_gtr_api_key" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+### 🎯 Claude Desktop & Other MCP Clients
+Use stdio transport with environment variables (see Quick Start above).
+
 ## 🚀 Quick Start
 
 ### Installation
@@ -195,10 +214,27 @@ The HTTP transport supports:
 
 ## 🔐 Authentication & Privacy
 
+### Authentication Methods
+
+**📱 ChatGPT Users:**
+- OAuth 2.0 flow (required by ChatGPT)
+- Users authorize with their GetTranscribe API key through a secure web form
+- Access tokens are JWT-based with 24-hour expiration
+
+**🔧 OpenAI API Users:**
+- Direct `x-api-key` header authentication
+- No OAuth flow needed for programmatic access
+
+**🎯 MCP Clients (Claude, etc.):**
+- Environment variable authentication
+- API key set in client configuration
+
+### Privacy & Security
 - Each user connects with their own API key
 - All data remains private to your GetTranscribe account
 - Secure API communication with HTTPS
 - No data is stored by the MCP server
+- OAuth tokens are temporary and automatically expire
 
 ## 📝 License
 

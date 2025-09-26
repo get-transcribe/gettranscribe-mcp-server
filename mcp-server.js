@@ -11,7 +11,7 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 
 // Configuration from environment variables
-const API_URL = process.env.GETTRANSCRIBE_API_URL || 'https://www.gettranscribe.ai';
+const API_URL = process.env.GETTRANSCRIBE_API_URL || 'https://api.gettranscribe.ai';
 const DEFAULT_API_KEY = process.env.GETTRANSCRIBE_API_KEY;
 
 // OAuth Configuration
@@ -581,7 +581,10 @@ async function main() {
       console.error('📨 [POST] Received MCP request (stateless)');
       
       try {
-        // Extract API key from header or OAuth token for HTTP requests
+        // Authentication: 
+        // - ChatGPT: Uses OAuth Bearer tokens (JWT)
+        // - OpenAI API: Can use x-api-key headers directly
+        // - MCP Clients: Use environment variables (stdio transport)
         let httpApiKey = req.headers['x-api-key'];
         
         // Check for OAuth Bearer token
