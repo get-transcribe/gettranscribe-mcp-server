@@ -18,7 +18,7 @@ OpenAI API supports both custom headers and Bearer tokens:
 
 **Option 1: Custom Header (x-api-key)**
 ```bash
-curl -X POST https://gettranscribe-mcp-server.onrender.com/mcp \
+curl -X POST https://api.gettranscribe.ai/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -H "x-api-key: your_gtr_api_key" \
@@ -27,7 +27,7 @@ curl -X POST https://gettranscribe-mcp-server.onrender.com/mcp \
 
 **Option 2: Authorization Bearer Token**
 ```bash
-curl -X POST https://gettranscribe-mcp-server.onrender.com/mcp \
+curl -X POST https://api.gettranscribe.ai/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -H "Authorization: Bearer your_gtr_api_key" \
@@ -39,7 +39,7 @@ curl -X POST https://gettranscribe-mcp-server.onrender.com/mcp \
 {
   "mcpServers": {
     "gettranscribe": {
-      "url": "https://gettranscribe-mcp-server.onrender.com/mcp",
+      "url": "https://api.gettranscribe.ai/mcp",
       "headers": {
         "Authorization": "Bearer your_gtr_api_key"
       }
@@ -48,8 +48,52 @@ curl -X POST https://gettranscribe-mcp-server.onrender.com/mcp \
 }
 ```
 
-### 🎯 Claude Desktop & Other MCP Clients
-Use stdio transport with environment variables (see Quick Start above).
+### 🎯 Cursor IDE & Other MCP Clients
+
+**🌟 Recommended: SSE Transport (HTTP)**
+Add to your `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "gettranscribe": {
+      "url": "https://api.gettranscribe.ai/mcp",
+      "headers": {
+        "Authorization": "Bearer your_gtr_api_key"
+      }
+    }
+  }
+}
+```
+
+**Alternative: stdio Transport**
+```json
+{
+  "mcpServers": {
+    "gettranscribe": {
+      "command": "npx",
+      "args": ["-y", "gettranscribe-mcp@latest"],
+      "env": {
+        "GETTRANSCRIBE_API_KEY": "your_gtr_api_key"
+      }
+    }
+  }
+}
+```
+
+**For Development (Local Server):**
+```json
+{
+  "mcpServers": {
+    "gettranscribe-local": {
+      "url": "http://localhost:8080/mcp",
+      "headers": {
+        "Authorization": "Bearer your_gtr_api_key"
+      }
+    }
+  }
+}
+```
 
 ## 🚀 Quick Start
 
@@ -126,6 +170,32 @@ This server is **fully compatible with ChatGPT** connectors and deep research. I
 - **`create_transcription_folder`** - Create folders to organize transcriptions
 - **`get_transcription_folder`** - Get folder details and contents
 - **`list_transcription_folders`** - List your folders
+
+## 🎯 Cursor IDE Setup Guide
+
+### Step 1: Open Cursor Configuration
+Open `~/.cursor/mcp.json` in your editor (create if it doesn't exist).
+
+### Step 2: Add GetTranscribe Configuration
+**🌟 Recommended (SSE/HTTP):**
+```json
+{
+  "mcpServers": {
+    "gettranscribe": {
+      "url": "https://api.gettranscribe.ai/mcp",
+      "headers": {
+        "Authorization": "Bearer gtr_your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+### Step 3: Restart Cursor
+Restart Cursor IDE to load the new MCP server.
+
+### Step 4: Test the Connection
+In Cursor chat, try: *"List my recent transcriptions"*
 
 ## 💬 Example Usage
 
@@ -206,11 +276,13 @@ Welcome to our video about AI and machine learning...
 
 ### 📊 Quick Reference
 
-| Transport | Use For | Command | Port |
-|-----------|---------|---------|------|
-| **stdio** | Claude Desktop, VS Code | `npm run start:stdio` | N/A |
-| **HTTP** | ChatGPT, OpenAI API | `npm run start:http` | 8080 |
-| **Development** | Testing | `npm run dev` | 8080 |
+| Transport | Use For | Configuration | URL |
+|-----------|---------|---------------|-----|
+| **SSE (HTTP)** ⭐ | Cursor, MCP Clients | URL + headers | `https://api.gettranscribe.ai/mcp` |
+| **stdio** | Claude Desktop, VS Code | Command + env | N/A |
+| **HTTP Local** | Development, ChatGPT | `npm run start:http` | `http://localhost:8080/mcp` |
+
+⭐ **SSE is recommended** for most applications as it provides better performance and real-time capabilities.
 
 ### 📟 stdio Transport (Default - for MCP Clients)
 For Claude Desktop, VS Code, and other MCP clients:
