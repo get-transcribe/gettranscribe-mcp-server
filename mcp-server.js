@@ -3,10 +3,11 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import axios from 'axios';
 import { randomUUID } from 'crypto';
-import { createServer } from 'http';
+import express from 'express';
 
 // Configuration from environment variables
 const API_URL = process.env.GETTRANSCRIBE_API_URL || 'https://gettranscribe.ai';
@@ -31,13 +32,57 @@ const mcpServer = new Server(
   },
   {
     capabilities: {
-      tools: {},
+      tools: {
+        listChanged: true
+      },
     },
+    protocolVersion: '2025-06-18',
   }
 );
 
-// Tool definitions
+// Add connection logging (these might not be available in this SDK version, so let's comment them out for now)
+// mcpServer.onRequest = (request) => {
+//   console.error(`📥 [MCP] Received request: ${request.method || 'unknown'}`);
+//   console.error(`📥 [MCP] Request details:`, JSON.stringify(request, null, 2));
+// };
+
+// mcpServer.onNotification = (notification) => {
+//   console.error(`📬 [MCP] Received notification: ${notification.method || 'unknown'}`);
+//   console.error(`📬 [MCP] Notification details:`, JSON.stringify(notification, null, 2));
+// };
+
+// Note: Initialize handler is built-in to the MCP server, no need to define it manually
+
+// Tool definitions - ChatGPT requires 'search' and 'fetch' tools
 const TOOLS = [
+  {
+    name: "search",
+    description: "Search for transcriptions using keywords or platform filters",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Search query string for finding relevant transcriptions"
+        }
+      },
+      required: ["query"]
+    }
+  },
+  {
+    name: "fetch",
+    description: "Retrieve complete transcription content by ID",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: {
+          type: "string",
+          description: "Transcription ID to retrieve"
+        }
+      },
+      required: ["id"]
+    }
+  },
   {
     name: "create_transcription",
     description: "Create a new transcription from a video URL (Instagram, TikTok, YouTube, Meta)",
@@ -63,10 +108,6 @@ const TOOLS = [
         include_segments: {
           type: "boolean",
           description: "Include transcription segments with timestamps (default: false)"
-        },
-        api_key: {
-          type: "string",
-          description: "Optional GetTranscribe API key (overrides server default)"
         }
       },
       required: ["url"]
@@ -81,10 +122,6 @@ const TOOLS = [
         transcription_id: {
           type: "number",
           description: "ID of the transcription to retrieve"
-        },
-        api_key: {
-          type: "string",
-          description: "Optional GetTranscribe API key (overrides server default)"
         }
       },
       required: ["transcription_id"]
@@ -111,10 +148,6 @@ const TOOLS = [
         skip: {
           type: "number", 
           description: "Number of results to skip for pagination"
-        },
-        api_key: {
-          type: "string",
-          description: "Optional GetTranscribe API key (overrides server default)"
         }
       }
     }
@@ -132,10 +165,6 @@ const TOOLS = [
         parent_id: {
           type: "number",
           description: "Optional parent folder ID for nested structure"
-        },
-        api_key: {
-          type: "string",
-          description: "Optional GetTranscribe API key (overrides server default)"
         }
       },
       required: ["name"]
@@ -150,10 +179,6 @@ const TOOLS = [
         folder_id: {
           type: "number",
           description: "ID of the folder to retrieve"
-        },
-        api_key: {
-          type: "string",
-          description: "Optional GetTranscribe API key (overrides server default)"
         }
       },
       required: ["folder_id"]
@@ -176,39 +201,92 @@ const TOOLS = [
         skip: {
           type: "number",
           description: "Number of results to skip for pagination"
-        },
-        api_key: {
-          type: "string",
-          description: "Optional GetTranscribe API key (overrides server default)"
         }
       }
     }
   }
 ];
 
-// List tools handler
-mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
+// Note: Tool handlers are now set up in createServerInstance() for HTTP transport
+
+
+// Start the server
+async function main() {
+  console.error('🚀 Starting GetTranscribe MCP Server...');
+  console.error(`📡 API URL: ${API_URL}`);
+  console.error(`🔑 Default API Key: ${DEFAULT_API_KEY ? '***' + DEFAULT_API_KEY.slice(-4) : 'NOT SET (clients must provide api_key parameter)'}`);
+
+  // Decide transport: HTTP if MCP_TRANSPORT=http or PORT is set, otherwise STDIO
+  const transportMode = (process.env.MCP_TRANSPORT || '').toLowerCase();
+  const useHTTP = transportMode === 'http' || transportMode === 'sse' || !!process.env.PORT;
+
+  if (useHTTP) {
+    const port = Number(process.env.PORT || 8080);
+    const mcpPath = process.env.MCP_PATH || '/mcp';
+
+    const app = express();
+    app.use(express.json());
+
+    // CORS middleware
+    app.use((req, res, next) => {
+      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Mcp-Session-Id, Last-Event-ID, MCP-Protocol-Version, x-api-key');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+      res.header('Access-Control-Expose-Headers', 'Mcp-Session-Id');
+      
+      if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+      }
+      next();
+    });
+
+    // Store active transports by session ID (for backwards compatibility)
+    const transports = {};
+    const sseTransports = {}; // For old SSE transport
+
+    // Helper function to create a new server instance
+    function createServerInstance(httpApiKey = null) {
+      const serverInstance = new Server(
+        {
+          name: 'gettranscribe',
+          version: '1.0.0',
+        },
+        {
+          capabilities: {
+            tools: {
+              listChanged: true
+            },
+          },
+          protocolVersion: '2025-06-18',
+        }
+      );
+
+      // Set up handlers
+      serverInstance.setRequestHandler(ListToolsRequestSchema, async () => {
+  console.error(`🔧 [MCP] Handling tools/list request`);
   return {
     tools: TOOLS
   };
 });
 
-// Call tool handler
-mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
+      serverInstance.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
   try {
     console.error(`🚀 [MCP] Calling tool: ${name}`);
 
-    // Get API key from client args or use default
-    const clientApiKey = args?.api_key;
-    const apiKey = clientApiKey || DEFAULT_API_KEY;
+          // For HTTP requests, use x-api-key header or default. For stdio, use default only
+          const apiKey = httpApiKey || DEFAULT_API_KEY;
 
     if (!apiKey) {
+            const errorMsg = httpApiKey !== null 
+              ? `❌ API key required. Please provide x-api-key header when making requests to /mcp endpoint, or set GETTRANSCRIBE_API_KEY environment variable.`
+              : `❌ API key required. Please set GETTRANSCRIBE_API_KEY environment variable.`;
+            
       return {
         content: [{
           type: "text",
-          text: `❌ API key required. Please provide api_key parameter or set GETTRANSCRIBE_API_KEY environment variable.`
+                text: errorMsg
         }],
         isError: true
       };
@@ -217,10 +295,76 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
     // Create client with the appropriate API key
     const client = createClient(apiKey);
 
-    // Remove api_key from args before sending to backend
-    const { api_key, ...cleanArgs } = args || {};
+          // Use args directly (no need to remove api_key anymore)
+          const cleanArgs = args || {};
 
-    // Make request to GetTranscribe MCP service
+          // Handle ChatGPT required tools with special logic
+          if (name === 'search') {
+            // For search tool, call list_transcriptions with query-based filtering
+            const response = await client.post('/mcp', {
+              method: 'tools/call',
+              params: {
+                name: 'list_transcriptions',
+                arguments: {
+                  limit: 10,
+                  ...cleanArgs
+                }
+              }
+            });
+
+            // Transform response to ChatGPT search format
+            const transcriptions = response.data?.content?.[0]?.text ? JSON.parse(response.data.content[0].text) : { data: [] };
+            const results = transcriptions.data?.map((t, index) => ({
+              id: String(t.id || index),
+              title: t.title || t.video_title || `Transcription ${t.id}`,
+              url: t.video_url || `${API_URL}/transcriptions/${t.id}`
+            })) || [];
+
+            return {
+              content: [{
+                type: "text",
+                text: JSON.stringify({ results })
+              }]
+            };
+          }
+
+          if (name === 'fetch') {
+            // For fetch tool, get full transcription content
+            const transcriptionId = cleanArgs.id;
+            const response = await client.post('/mcp', {
+              method: 'tools/call',
+              params: {
+                name: 'get_transcription',
+                arguments: {
+                  transcription_id: parseInt(transcriptionId)
+                }
+              }
+            });
+
+            // Transform response to ChatGPT fetch format
+            const transcription = response.data?.content?.[0]?.text ? JSON.parse(response.data.content[0].text) : {};
+            const result = {
+              id: String(transcription.id || transcriptionId),
+              title: transcription.title || transcription.video_title || `Transcription ${transcriptionId}`,
+              text: transcription.transcription || transcription.content || 'No transcription content available',
+              url: transcription.video_url || `${API_URL}/transcriptions/${transcriptionId}`,
+              metadata: {
+                platform: transcription.platform,
+                language: transcription.language,
+                created_at: transcription.created_at,
+                duration: transcription.duration
+              }
+            };
+
+            return {
+              content: [{
+                type: "text",
+                text: JSON.stringify(result)
+              }]
+            };
+          }
+
+          // For other tools, make the regular request
     const response = await client.post('/mcp', {
       method: 'tools/call',
       params: {
@@ -246,160 +390,295 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
-// Session storage for Streamable HTTP transport
-const sessions = new Map();
+      return serverInstance;
+    }
 
-// Start the server
-async function main() {
-  console.error('🚀 Starting GetTranscribe MCP Server...');
-  console.error(`📡 API URL: ${API_URL}`);
-  console.error(`🔑 Default API Key: ${DEFAULT_API_KEY ? '***' + DEFAULT_API_KEY.slice(-4) : 'NOT SET (clients must provide api_key parameter)'}`);
-
-  // Decide transport: HTTP if MCP_TRANSPORT=http or PORT is set, otherwise STDIO
-  const transportMode = (process.env.MCP_TRANSPORT || '').toLowerCase();
-  const useHTTP = transportMode === 'http' || transportMode === 'sse' || !!process.env.PORT;
-
-  if (useHTTP) {
-    const port = Number(process.env.PORT || 8080);
-    const mcpPath = process.env.MCP_PATH || '/mcp';
-
-    const httpServer = createServer(async (req, res) => {
+    // Handle POST requests for client-to-server communication (Stateless mode)
+    app.post(mcpPath, async (req, res) => {
+      console.error('📨 [POST] Received MCP request (stateless)');
+      
       try {
-        // Add CORS headers
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Mcp-Session-Id, Last-Event-ID');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-
-        // Handle preflight requests
-        if (req.method === 'OPTIONS') {
-          res.writeHead(200);
-          res.end();
-          return;
-        }
-
-        // Parse URL and session ID
-        const url = new URL(req.url, `http://localhost:${port}`);
-        const sessionId = req.headers['mcp-session-id'];
-
-        if (req.method === 'POST' && url.pathname === mcpPath) {
-          // Handle Streamable HTTP POST requests (client-to-server messages)
-          let body = '';
-          req.on('data', chunk => body += chunk);
-          req.on('end', async () => {
-            try {
-              const message = JSON.parse(body);
-              console.error(`📨 [HTTP] Received message:`, message.method || 'response');
-
-              // Check if this is an initialization request
-              if (message.method === 'initialize') {
-                // Create new session
-                const newSessionId = randomUUID();
-                sessions.set(newSessionId, { createdAt: Date.now() });
-                
-                // Create SSE transport for this session
-                const transport = new SSEServerTransport(mcpPath, res);
-                await mcpServer.connect(transport);
-                
-                // Set session header
-                res.setHeader('Mcp-Session-Id', newSessionId);
-                console.error(`🔑 [HTTP] Created session: ${newSessionId}`);
-                return;
-              }
-
-              // Validate session for non-initialization requests
-              if (!sessionId || !sessions.has(sessionId)) {
-                res.writeHead(404, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Session not found' }));
-                return;
-              }
-
-              // For notifications and responses, return 202 Accepted
-              if (!message.id || message.method === undefined) {
-                res.writeHead(202);
-                res.end();
-                return;
-              }
-
-              // For requests, use SSE transport
-              const transport = new SSEServerTransport(mcpPath, res);
-              await mcpServer.connect(transport);
-
-            } catch (error) {
-              console.error('❌ [HTTP] Error processing POST:', error);
-              res.writeHead(400, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: 'Invalid JSON-RPC message' }));
-            }
-          });
-
-        } else if (req.method === 'GET' && url.pathname === mcpPath) {
-          // Handle SSE stream for server-to-client messages
-          const lastEventId = req.headers['last-event-id'];
-          
-          if (sessionId && !sessions.has(sessionId)) {
-            res.writeHead(404, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Session not found' }));
-            return;
-          }
-
-          console.error('🔗 [SSE] Opening stream', sessionId ? `for session ${sessionId}` : '(no session)');
-          
-          const transport = new SSEServerTransport(mcpPath, res);
-          await mcpServer.connect(transport);
-
-        } else if (req.method === 'DELETE' && url.pathname === mcpPath && sessionId) {
-          // Handle session termination
-          if (sessions.has(sessionId)) {
-            sessions.delete(sessionId);
-            console.error(`🗑️ [HTTP] Terminated session: ${sessionId}`);
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ status: 'session terminated' }));
-          } else {
-            res.writeHead(404, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Session not found' }));
-          }
-
-        } else if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/health')) {
-          // Health check endpoint
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ 
-            status: 'ok', 
-            transport: 'streamable-http',
-            sessions: sessions.size 
-          }));
-
-        } else {
-          res.writeHead(404, { 'Content-Type': 'text/plain' });
-          res.end('Not Found');
-        }
-
-      } catch (err) {
-        console.error('❌ [HTTP] Server error:', err?.message || err);
+        // Extract API key from header for HTTP requests
+        const httpApiKey = req.headers['x-api-key'];
+        
+        // Create a new instance of transport and server for each request
+        // to ensure complete isolation and avoid request ID collisions
+        const server = createServerInstance(httpApiKey);
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: undefined, // Stateless mode
+        });
+        
+        res.on('close', () => {
+          console.error('🔌 [POST] Request closed');
+          transport.close();
+          server.close();
+        });
+        
+        await server.connect(transport);
+        await transport.handleRequest(req, res, req.body);
+        console.error('✅ [POST] Request handled successfully');
+        
+      } catch (error) {
+        console.error('❌ [POST] Error handling MCP request:', error);
         if (!res.headersSent) {
-          res.writeHead(500, { 'Content-Type': 'text/plain' });
-          res.end('Internal Server Error');
+          res.status(500).json({
+            jsonrpc: '2.0',
+            error: {
+              code: -32603,
+              message: 'Internal server error',
+            },
+            id: null,
+          });
         }
       }
     });
 
-    // Clean up expired sessions every 5 minutes
-    setInterval(() => {
-      const now = Date.now();
-      const maxAge = 30 * 60 * 1000; // 30 minutes
-      for (const [sessionId, session] of sessions.entries()) {
-        if (now - session.createdAt > maxAge) {
-          sessions.delete(sessionId);
-          console.error(`🧹 [HTTP] Cleaned up expired session: ${sessionId}`);
+    // SSE notifications not supported in stateless mode
+    app.get(mcpPath, async (req, res) => {
+      console.error('🔗 [GET] Received GET MCP request (stateless mode)');
+      res.writeHead(405).end(JSON.stringify({
+        jsonrpc: "2.0",
+        error: {
+          code: -32000,
+          message: "Method not allowed - SSE not supported in stateless mode."
+        },
+        id: null
+      }));
+    });
+
+    // Session termination not needed in stateless mode
+    app.delete(mcpPath, async (req, res) => {
+      console.error('🗑️ [DELETE] Received DELETE MCP request (stateless mode)');
+      res.writeHead(405).end(JSON.stringify({
+        jsonrpc: "2.0",
+        error: {
+          code: -32000,
+          message: "Method not allowed - sessions not used in stateless mode."
+        },
+        id: null
+      }));
+    });
+
+    // Health check endpoint
+    app.get(['/health', '/'], (req, res) => {
+      res.json({
+        status: 'ok',
+        transport: 'streamable-http',
+        name: 'GetTranscribe MCP Server',
+        version: '1.0.0',
+        tools: TOOLS.map(t => t.name),
+        chatgpt_compatible: true,
+        api_url: API_URL,
+        endpoint: `http://localhost:${port}${mcpPath}`,
+        active_sessions: Object.keys(transports).length,
+        sse_sessions: Object.keys(sseTransports).length
+      });
+    });
+
+    // Backwards compatibility: Old SSE transport for MCP Inspector
+    app.get('/sse', async (req, res) => {
+      console.error('🔗 [OLD SSE] Inspector connection attempt');
+      
+      try {
+        const sessionId = randomUUID();
+        const httpApiKey = req.headers['x-api-key'];
+        const server = createServerInstance(httpApiKey);
+        const transport = new SSEServerTransport('/messages', res);
+        
+        sseTransports[sessionId] = { server, transport };
+        
+        // Clean up on close
+        res.on('close', () => {
+          console.error(`🗑️ [OLD SSE] Session closed: ${sessionId}`);
+          if (sseTransports[sessionId]) {
+            sseTransports[sessionId].server.close();
+            delete sseTransports[sessionId];
+          }
+        });
+        
+        await server.connect(transport);
+        console.error(`✅ [OLD SSE] Connected session: ${sessionId}`);
+        
+      } catch (error) {
+        console.error('❌ [OLD SSE] Error:', error);
+        if (!res.headersSent) {
+          res.status(500).send('SSE connection failed');
         }
       }
-    }, 5 * 60 * 1000);
+    });
 
-    httpServer.listen(port, () => {
+    // Backwards compatibility: Old messages endpoint
+    app.post('/messages', async (req, res) => {
+      console.error('📨 [OLD MESSAGES] Received POST');
+      
+      // Find any active SSE transport to handle this message
+      const sessionIds = Object.keys(sseTransports);
+      if (sessionIds.length === 0) {
+        return res.status(400).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32000,
+            message: 'No active SSE session'
+          },
+          id: null
+        });
+      }
+      
+      // Use the first available session
+      const sessionId = sessionIds[0];
+      const { transport } = sseTransports[sessionId];
+      
+      try {
+        await transport.handleMessage(req.body);
+        res.status(200).send('OK');
+      } catch (error) {
+        console.error('❌ [OLD MESSAGES] Error:', error);
+        res.status(500).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32603,
+            message: 'Internal server error'
+          },
+          id: null
+        });
+      }
+    });
+
+    // Start server
+    app.listen(port, () => {
       console.error(`✅ GetTranscribe MCP Server (Streamable HTTP) listening on port ${port}`);
       console.error(`🔗 MCP endpoint: http://localhost:${port}${mcpPath}`);
+      console.error(`🏥 Health check: http://localhost:${port}/health`);
+      console.error(`📖 MCP Inspector: npx @modelcontextprotocol/inspector http://localhost:${port}${mcpPath}`);
     });
 
   } else {
     // Use stdio transport
+    // Set up handlers for stdio transport
+    mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
+      console.error(`🔧 [MCP] Handling tools/list request`);
+      return {
+        tools: TOOLS
+      };
+    });
+
+    mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
+      const { name, arguments: args } = request.params;
+
+      try {
+        console.error(`🚀 [MCP] Calling tool: ${name}`);
+
+        // For stdio mode, use default API key only
+        const apiKey = DEFAULT_API_KEY;
+
+        if (!apiKey) {
+          return {
+            content: [{
+              type: "text",
+              text: `❌ API key required. Please set GETTRANSCRIBE_API_KEY environment variable.`
+            }],
+            isError: true
+          };
+        }
+
+        // Create client with the appropriate API key
+        const client = createClient(apiKey);
+
+        // Use args directly (no api_key parameter anymore)
+        const cleanArgs = args || {};
+
+        // Handle ChatGPT required tools with special logic
+        if (name === 'search') {
+          // For search tool, call list_transcriptions with query-based filtering
+          const response = await client.post('/mcp', {
+            method: 'tools/call',
+            params: {
+              name: 'list_transcriptions',
+              arguments: {
+                limit: 10,
+                ...cleanArgs
+              }
+            }
+          });
+
+          // Transform response to ChatGPT search format
+          const transcriptions = response.data?.content?.[0]?.text ? JSON.parse(response.data.content[0].text) : { data: [] };
+          const results = transcriptions.data?.map((t, index) => ({
+            id: String(t.id || index),
+            title: t.title || t.video_title || `Transcription ${t.id}`,
+            url: t.video_url || `${API_URL}/transcriptions/${t.id}`
+          })) || [];
+
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({ results })
+            }]
+          };
+        }
+
+        if (name === 'fetch') {
+          // For fetch tool, get full transcription content
+          const transcriptionId = cleanArgs.id;
+          const response = await client.post('/mcp', {
+            method: 'tools/call',
+            params: {
+              name: 'get_transcription',
+              arguments: {
+                transcription_id: parseInt(transcriptionId)
+              }
+            }
+          });
+
+          // Transform response to ChatGPT fetch format
+          const transcription = response.data?.content?.[0]?.text ? JSON.parse(response.data.content[0].text) : {};
+          const result = {
+            id: String(transcription.id || transcriptionId),
+            title: transcription.title || transcription.video_title || `Transcription ${transcriptionId}`,
+            text: transcription.transcription || transcription.content || 'No transcription content available',
+            url: transcription.video_url || `${API_URL}/transcriptions/${transcriptionId}`,
+            metadata: {
+              platform: transcription.platform,
+              language: transcription.language,
+              created_at: transcription.created_at,
+              duration: transcription.duration
+            }
+          };
+
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(result)
+            }]
+          };
+        }
+
+        // For other tools, make the regular request
+        const response = await client.post('/mcp', {
+          method: 'tools/call',
+          params: {
+            name,
+            arguments: cleanArgs
+          }
+        });
+
+        // Return the response from the service
+        return response.data;
+
+      } catch (error) {
+        console.error(`❌ [MCP] Error calling tool ${name}:`, error.message);
+        
+        // Return error in MCP format
+        return {
+          content: [{
+            type: "text",
+            text: `❌ Error calling ${name}: ${error.response?.data?.message || error.message}`
+          }],
+          isError: true
+        };
+      }
+    });
+
     const transport = new StdioServerTransport();
     await mcpServer.connect(transport);
     console.error('✅ GetTranscribe MCP Server (stdio) started successfully');

@@ -1,0 +1,21 @@
+---
+description: when working with mcp-server
+globs:
+alwaysApply: true
+---
+
+This is a MCP server that must follow the guidelines of the model context protocol. It works with both transports stdio and sse (streamable http )
+
+You can find this guidelines in the /docs-model-context-protocol folder where you fin the following documentation.
+
+overview.md
+authorization.md
+cancellation.md
+lifecycle.md
+ping.md
+progress.md
+tools.md
+transports.md
+
+We use the library https://github.com/modelcontextprotocol/typescript-sdk for which you can find the docuemntation on /Users/danielvengoechea/proyectos/get-transcribe/gettranscribe-mcp-server/docs-model-context-protocol/typescript-sdk.md
+

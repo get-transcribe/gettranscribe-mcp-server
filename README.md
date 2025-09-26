@@ -3,8 +3,10 @@ o w# GetTranscribe MCP Server
 MCP (Model Context Protocol) server for [GetTranscribe](https://gettranscribe.ai) - AI-powered video transcription service. This allows you to interact with your GetTranscribe transcriptions through AI assistants like Claude, ChatGPT, and other MCP-compatible clients.
 
 **Supports both MCP transports:**
-- **stdio** - For standard MCP client integration
-- **Streamable HTTP** - For web-based and advanced clients
+- **stdio** - For standard MCP client integration (Claude Desktop, VS Code, etc.)
+- **Streamable HTTP** - For web-based and advanced clients (ChatGPT, remote access)
+
+📖 **See [TRANSPORT-COMPARISON.md](./TRANSPORT-COMPARISON.md) for detailed transport comparison and usage guide.**
 
 ## 🚀 Quick Start
 
@@ -40,7 +42,20 @@ Start the server:
 MCP_TRANSPORT=http PORT=8080 GETTRANSCRIBE_API_KEY=your_key gettranscribe-mcp
 ```
 
+Or use npm scripts:
+```bash
+npm run start:http        # General HTTP mode
+npm run start:chatgpt     # Alias for ChatGPT users
+npm run dev               # Development mode
+```
+
 Then configure your client to connect to `http://localhost:8080/mcp`
+
+#### 🤖 ChatGPT Integration
+
+This server is **fully compatible with ChatGPT** connectors and deep research. It implements the required `search` and `fetch` tools.
+
+📖 **See [README-CHATGPT.md](./README-CHATGPT.md) for detailed ChatGPT setup instructions.**
 
 ### Get Your API Key
 
@@ -51,6 +66,11 @@ Then configure your client to connect to `http://localhost:8080/mcp`
 5. Copy it to your MCP configuration
 
 ## 🛠️ Available Tools
+
+### ChatGPT-Compatible Tools
+
+- **`search`** - Search transcriptions by keywords (required for ChatGPT)
+- **`fetch`** - Retrieve complete transcription content by ID (required for ChatGPT)
 
 ### Transcription Tools
 
