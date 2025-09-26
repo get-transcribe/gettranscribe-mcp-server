@@ -90,34 +90,34 @@ const mcpServer = new Server(
 
 // Tool definitions - ChatGPT requires 'search' and 'fetch' tools
 const TOOLS = [
-  {
-    name: "search",
-    description: "Search for transcriptions using keywords or platform filters",
-    inputSchema: {
-      type: "object",
-      properties: {
-        query: {
-          type: "string",
-          description: "Search query string for finding relevant transcriptions"
-        }
-      },
-      required: ["query"]
-    }
-  },
-  {
-    name: "fetch",
-    description: "Retrieve complete transcription content by ID",
-    inputSchema: {
-      type: "object",
-      properties: {
-        id: {
-          type: "string",
-          description: "Transcription ID to retrieve"
-        }
-      },
-      required: ["id"]
-    }
-  },
+//   {
+//     name: "search",
+//     description: "Search for transcriptions using keywords or platform filters",
+//     inputSchema: {
+//       type: "object",
+//       properties: {
+//         query: {
+//           type: "string",
+//           description: "Search query string for finding relevant transcriptions"
+//         }
+//       },
+//       required: ["query"]
+//     }
+//   },
+//   {
+//     name: "fetch",
+//     description: "Retrieve complete transcription content by ID",
+//     inputSchema: {
+//       type: "object",
+//       properties: {
+//         id: {
+//           type: "string",
+//           description: "Transcription ID to retrieve"
+//         }
+//       },
+//       required: ["id"]
+//     }
+//   },
   {
     name: "create_transcription",
     description: "Create a new transcription from a video URL (Instagram, TikTok, YouTube, Meta)",
@@ -583,18 +583,25 @@ async function main() {
       try {
         // Authentication: 
         // - ChatGPT: Uses OAuth Bearer tokens (JWT)
-        // - OpenAI API: Can use x-api-key headers directly
+        // - OpenAI API: Can use x-api-key headers OR Authorization Bearer with raw API key
         // - MCP Clients: Use environment variables (stdio transport)
         let httpApiKey = req.headers['x-api-key'];
         
-        // Check for OAuth Bearer token
+        // Check for Authorization Bearer token
         const authHeader = req.headers['authorization'];
         if (!httpApiKey && authHeader && authHeader.startsWith('Bearer ')) {
           const token = authHeader.substring(7);
+          
+          // First try to verify as OAuth JWT token (for ChatGPT)
           const decoded = verifyAccessToken(token);
           if (decoded && decoded.api_key) {
             httpApiKey = decoded.api_key;
-            console.error(`🔐 [OAuth] Using API key from Bearer token`);
+            console.error(`🔐 [OAuth] Using API key from JWT Bearer token`);
+          } else if (token.startsWith('gtr_')) {
+            // If JWT verification fails but token looks like GetTranscribe API key,
+            // treat it as raw API key (for OpenAI API Bearer auth)
+            httpApiKey = token;
+            console.error(`🔐 [Bearer] Using raw API key from Authorization header`);
           }
         }
         
@@ -678,17 +685,24 @@ async function main() {
       
       try {
         const sessionId = randomUUID();
-        // Extract API key from header or OAuth token
+        // Extract API key from header or Bearer token
         let httpApiKey = req.headers['x-api-key'];
         
-        // Check for OAuth Bearer token
+        // Check for Authorization Bearer token
         const authHeader = req.headers['authorization'];
         if (!httpApiKey && authHeader && authHeader.startsWith('Bearer ')) {
           const token = authHeader.substring(7);
+          
+          // First try to verify as OAuth JWT token (for ChatGPT)
           const decoded = verifyAccessToken(token);
           if (decoded && decoded.api_key) {
             httpApiKey = decoded.api_key;
-            console.error(`🔐 [OAuth] Using API key from Bearer token in SSE`);
+            console.error(`🔐 [OAuth] Using API key from JWT Bearer token in SSE`);
+          } else if (token.startsWith('gtr_')) {
+            // If JWT verification fails but token looks like GetTranscribe API key,
+            // treat it as raw API key (for OpenAI API Bearer auth)
+            httpApiKey = token;
+            console.error(`🔐 [Bearer] Using raw API key from Authorization header in SSE`);
           }
         }
         const server = createServerInstance(httpApiKey);

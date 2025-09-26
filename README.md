@@ -14,14 +14,38 @@ MCP (Model Context Protocol) server for [GetTranscribe](https://gettranscribe.ai
 ChatGPT requires OAuth 2.0 authentication. See **[README-CHATGPT.md](README-CHATGPT.md)** for complete setup guide.
 
 ### 🔧 OpenAI API Users
-OpenAI API supports custom headers. You can use `x-api-key` header:
+OpenAI API supports both custom headers and Bearer tokens:
 
+**Option 1: Custom Header (x-api-key)**
 ```bash
 curl -X POST https://gettranscribe-mcp-server.onrender.com/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -H "x-api-key: your_gtr_api_key" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+**Option 2: Authorization Bearer Token**
+```bash
+curl -X POST https://gettranscribe-mcp-server.onrender.com/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Authorization: Bearer your_gtr_api_key" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+**MCP Client Configuration Example:**
+```json
+{
+  "mcpServers": {
+    "gettranscribe": {
+      "url": "https://gettranscribe-mcp-server.onrender.com/mcp",
+      "headers": {
+        "Authorization": "Bearer your_gtr_api_key"
+      }
+    }
+  }
+}
 ```
 
 ### 🎯 Claude Desktop & Other MCP Clients
@@ -222,7 +246,8 @@ The HTTP transport supports:
 - Access tokens are JWT-based with 24-hour expiration
 
 **🔧 OpenAI API Users:**
-- Direct `x-api-key` header authentication
+- `x-api-key` header authentication OR
+- `Authorization: Bearer <api_key>` authentication
 - No OAuth flow needed for programmatic access
 
 **🎯 MCP Clients (Claude, etc.):**
