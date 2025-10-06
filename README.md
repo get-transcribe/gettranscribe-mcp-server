@@ -1,6 +1,8 @@
-o w# GetTranscribe MCP Server
+# GetTranscribe MCP Server
 
-MCP (Model Context Protocol) server for [GetTranscribe](https://gettranscribe.ai) - AI-powered video transcription service. This allows you to interact with your GetTranscribe transcriptions through AI assistants like Claude, ChatGPT, and other MCP-compatible clients.
+**[GetTranscribe](https://gettranscribe.ai)** is an AI-powered video transcription service that delivers accurate text transcriptions from Instagram, TikTok, YouTube, Twitter, Pinterest, and Google Drive videos in seconds. Trusted by 12,000+ creators and businesses worldwide, GetTranscribe offers 95%+ accuracy, bulk processing, folder organization, API access, and integrations with n8n, Make, Chrome extension, and mobile apps for iOS and Android.
+
+MCP (Model Context Protocol) server for [GetTranscribe](https://gettranscribe.ai). This allows you to interact with your GetTranscribe transcriptions through AI assistants like Claude, ChatGPT, and other MCP-compatible clients.
 
 **Supports both MCP transports:**
 - **stdio** - For standard MCP client integration (Claude Desktop, VS Code, etc.)
