@@ -22,15 +22,17 @@ ChatGPT requires OAuth 2.0 authentication. See **[README-CHATGPT.md](README-CHAT
    - Select "Chat" mode
 
 2. **Add MCP Server**
-   - Click on "Assistants" in the left sidebar
+   - Click on "Chat" in the left sidebar
    - Click "+ Add" under "Tools" section
    - Select "MCP Server"
+   - Click on " + Server"
+
 
 3. **Configure GetTranscribe Server**
    - **Name:** `GetTranscribe`
    - **URL:** `https://gettranscribe-mcp-server.onrender.com/mcp`
    - **API Key / Auth token:** Select "API Key" from dropdown
-   - **Enter your GetTranscribe API key:** `gtr_your_api_key_here`
+   - **Enter your GetTranscribe API key:** `your_api_key_here`
 
 4. **Select Tools**
    - Enable all available tools:
@@ -44,40 +46,6 @@ ChatGPT requires OAuth 2.0 authentication. See **[README-CHATGPT.md](README-CHAT
 5. **Save and Test**
    - Click "Add" to save the configuration
    - Start chatting and ask: *"List my recent transcriptions"*
-
-#### OpenAI API Users (Programmatic Access)
-
-**Option 1: Custom Header (x-api-key)**
-```bash
-curl -X POST https://gettranscribe-mcp-server.onrender.com/mcp \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -H "x-api-key: your_gtr_api_key" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
-```
-
-**Option 2: Authorization Bearer Token**
-```bash
-curl -X POST https://gettranscribe-mcp-server.onrender.com/mcp \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -H "Authorization: Bearer your_gtr_api_key" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
-```
-
-**MCP Client Configuration Example:**
-```json
-{
-  "mcpServers": {
-    "gettranscribe": {
-      "url": "https://gettranscribe-mcp-server.onrender.com/mcp",
-      "headers": {
-        "Authorization": "Bearer your_gtr_api_key"
-      }
-    }
-  }
-}
-```
 
 ### 🎯 Cursor IDE & Other MCP Clients
 
@@ -184,11 +152,6 @@ This server is **fully compatible with ChatGPT** connectors and deep research. I
 5. Copy it to your MCP configuration
 
 ## 🛠️ Available Tools
-
-### ChatGPT-Compatible Tools
-
-- **`search`** - Search transcriptions by keywords (required for ChatGPT)
-- **`fetch`** - Retrieve complete transcription content by ID (required for ChatGPT)
 
 ### Transcription Tools
 

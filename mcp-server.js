@@ -171,11 +171,11 @@ const TOOLS = [
       properties: {
         folder_id: {
           type: "number",
-          description: "Filter by folder ID"
+          description: "Optional: Filter by folder ID (dont send if you want to list all transcriptions)"
         },
         platform: {
           type: "string",
-          description: "Filter by platform (instagram, tiktok, youtube, meta)"
+          description: "Optional: Filter by platform (instagram, tiktok, youtube, meta) (dont send if you want to list all transcriptions)"
         },
         limit: {
           type: "number",
