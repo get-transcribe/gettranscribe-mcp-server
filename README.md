@@ -195,12 +195,12 @@ In Cursor chat, try: *"List my recent transcriptions"*
 
 After setup, you can ask your AI assistant:
 
-- *"Create a transcription from this YouTube video: https://youtube.com/watch?v=dQw4w9WgXcQ"*
-- *"Transcribe this video with timestamps: https://youtube.com/watch?v=example"*
+- *"Create a transcription from this Instagram reel: https://www.instagram.com/reel/example"*
+- *"Transcribe this video with timestamps: https://www.instagram.com/reel/example"*
 - *"Show me my recent transcriptions"*
-- *"Create a folder called 'Podcast Episodes'"*
+- *"Create a folder called 'Social Media Content'"*
 - *"Get the transcription with ID 123"*
-- *"List all my YouTube transcriptions"*
+- *"List all my Instagram transcriptions"*
 
 ## ⏱️ Transcription Segments
 

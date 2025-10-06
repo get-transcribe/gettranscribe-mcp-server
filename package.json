@@ -1,6 +1,6 @@
 {
   "name": "gettranscribe-mcp",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "MCP server for GetTranscribe supporting both stdio and Streamable HTTP transports",
   "type": "module",
   "main": "mcp-server.js",
