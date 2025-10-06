@@ -1,12 +1,20 @@
 {
   "name": "gettranscribe-mcp",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "MCP server for GetTranscribe supporting both stdio and Streamable HTTP transports",
   "type": "module",
   "main": "mcp-server.js",
   "bin": {
     "gettranscribe-mcp": "./mcp-server.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/get-transcribe/gettranscribe-mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/get-transcribe/gettranscribe-mcp-server/issues"
+  },
+  "homepage": "https://github.com/get-transcribe/gettranscribe-mcp-server#readme",
   "scripts": {
     "start": "node mcp-server.js",
     "start:stdio": "MCP_TRANSPORT=stdio node mcp-server.js",

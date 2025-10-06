@@ -13,12 +13,43 @@ MCP (Model Context Protocol) server for [GetTranscribe](https://gettranscribe.ai
 ### 🤖 ChatGPT Users
 ChatGPT requires OAuth 2.0 authentication. See **[README-CHATGPT.md](README-CHATGPT.md)** for complete setup guide.
 
-### 🔧 OpenAI API Users
-OpenAI API supports both custom headers and Bearer tokens:
+### 🔧 OpenAI Playground Users
+
+#### Step-by-Step Setup:
+
+1. **Open OpenAI Playground**
+   - Go to [platform.openai.com/playground](https://platform.openai.com/playground)
+   - Select "Chat" mode
+
+2. **Add MCP Server**
+   - Click on "Assistants" in the left sidebar
+   - Click "+ Add" under "Tools" section
+   - Select "MCP Server"
+
+3. **Configure GetTranscribe Server**
+   - **Name:** `GetTranscribe`
+   - **URL:** `https://gettranscribe-mcp-server.onrender.com/mcp`
+   - **API Key / Auth token:** Select "API Key" from dropdown
+   - **Enter your GetTranscribe API key:** `gtr_your_api_key_here`
+
+4. **Select Tools**
+   - Enable all available tools:
+     - ✅ `create_transcription`
+     - ✅ `get_transcription`
+     - ✅ `list_transcriptions`
+     - ✅ `create_transcription_folder`
+     - ✅ `get_transcription_folder`
+     - ✅ `list_transcription_folders`
+
+5. **Save and Test**
+   - Click "Add" to save the configuration
+   - Start chatting and ask: *"List my recent transcriptions"*
+
+#### OpenAI API Users (Programmatic Access)
 
 **Option 1: Custom Header (x-api-key)**
 ```bash
-curl -X POST https://api.gettranscribe.ai/mcp \
+curl -X POST https://gettranscribe-mcp-server.onrender.com/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -H "x-api-key: your_gtr_api_key" \
@@ -27,7 +58,7 @@ curl -X POST https://api.gettranscribe.ai/mcp \
 
 **Option 2: Authorization Bearer Token**
 ```bash
-curl -X POST https://api.gettranscribe.ai/mcp \
+curl -X POST https://gettranscribe-mcp-server.onrender.com/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -H "Authorization: Bearer your_gtr_api_key" \
@@ -39,7 +70,7 @@ curl -X POST https://api.gettranscribe.ai/mcp \
 {
   "mcpServers": {
     "gettranscribe": {
-      "url": "https://api.gettranscribe.ai/mcp",
+      "url": "https://gettranscribe-mcp-server.onrender.com/mcp",
       "headers": {
         "Authorization": "Bearer your_gtr_api_key"
       }
@@ -57,7 +88,7 @@ Add to your `~/.cursor/mcp.json`:
 {
   "mcpServers": {
     "gettranscribe": {
-      "url": "https://api.gettranscribe.ai/mcp",
+      "url": "https://gettranscribe-mcp-server.onrender.com/mcp",
       "headers": {
         "Authorization": "Bearer your_gtr_api_key"
       }
@@ -238,7 +269,7 @@ Welcome to our video about AI and machine learning...
 ### create_transcription
 ```json
 {
-  "url": "https://youtube.com/watch?v=example",     // Required: Video URL
+  "url": "https://www.instagram.com/reel/example", // Required: Video URL
   "folder_id": 123,                                // Optional: Folder ID
   "prompt": "Focus on key takeaways",              // Optional: Custom prompt
   "language": "en",                                // Optional: Language code
@@ -246,12 +277,19 @@ Welcome to our video about AI and machine learning...
 }
 ```
 
+### get_transcription
+```json
+{
+  "transcription_id": 123                          // Required: ID of the transcription to retrieve
+}
+```
+
 ### list_transcriptions
 ```json
 {
   "folder_id": 123,                               // Optional: Filter by folder
-  "platform": "youtube",                         // Optional: Filter by platform
-  "limit": 10,                                   // Optional: Results limit (max 50)
+  "platform": "youtube",                         // Optional: Filter by platform (instagram, tiktok, youtube, meta)
+  "limit": 10,                                   // Optional: Results limit (default: 10, max: 50)
   "skip": 0                                      // Optional: Pagination offset
 }
 ```
@@ -260,7 +298,23 @@ Welcome to our video about AI and machine learning...
 ```json
 {
   "name": "My Folder",                           // Required: Folder name
-  "parent_id": 456                               // Optional: Parent folder ID
+  "parent_id": 456                               // Optional: Parent folder ID for nested structure
+}
+```
+
+### get_transcription_folder
+```json
+{
+  "folder_id": 123                               // Required: ID of the folder to retrieve
+}
+```
+
+### list_transcription_folders
+```json
+{
+  "parent_id": 456,                              // Optional: Filter by parent folder ID (null for root folders)
+  "limit": 10,                                   // Optional: Results limit (default: 10)
+  "skip": 0                                      // Optional: Pagination offset
 }
 ```
 
