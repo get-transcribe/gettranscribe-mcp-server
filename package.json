@@ -1,5 +1,5 @@
 {
-  "name": "@gettranscribe/mcp-server",
+  "name": "gettranscribe-mcp",
   "version": "1.3.0",
   "description": "MCP server for GetTranscribe - AI-powered video transcription service. Supports stdio and Streamable HTTP transports with custom UI components for ChatGPT.",
   "type": "module",
