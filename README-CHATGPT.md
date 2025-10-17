@@ -12,52 +12,66 @@ Connect GetTranscribe to ChatGPT to create, search, and manage video transcripti
 3. Navigate to your account settings or API section
 4. Copy your API key (starts with `gtr_`)
 
-### Step 2: Add GetTranscribe to ChatGPT
+### Step 2: Add GetTranscribe Connector to ChatGPT
 1. Open ChatGPT
-2. Click on your profile → **Settings** → **Beta Features**
-3. Enable **"Third-party GPT Actions"** if not already enabled
-4. Create a new GPT or edit an existing one
-5. In the GPT configuration, add an Action with these details:
+2. Click on your profile → **Settings** → **Developer mode**
+3. Enable **"Developer mode"** if not already enabled
+4. Click **"Add connector"**
+5. Fill in the connector details:
 
-**Option A: Use the base URL (Recommended)**
-```
-Base URL: https://gettranscribe-mcp-server.onrender.com
-```
-
-ChatGPT will automatically discover all OAuth endpoints via the `.well-known/oauth-authorization-server` endpoint.
-
-**Option B: Manual Configuration**
 ```
 Name: GetTranscribe
-Description: Create and manage video transcriptions from social media
+Description: Create and manage video transcriptions from social media platforms
 MCP Server URL: https://gettranscribe-mcp-server.onrender.com/mcp
-
-OAuth 2.0 Settings (Dynamic Client Registration):
-- Discovery URL: https://gettranscribe-mcp-server.onrender.com/.well-known/oauth-authorization-server
-- Authorization URL: https://gettranscribe-mcp-server.onrender.com/oauth/authorize
-- Token URL: https://gettranscribe-mcp-server.onrender.com/oauth/token
-- Registration URL: https://gettranscribe-mcp-server.onrender.com/oauth/register
-
-Note: Client ID and Secret are automatically generated via Dynamic Client Registration
 ```
 
-### Step 3: Authorize Access
-1. After adding the action, click **"Authenticate"** or **"Connect"**
+6. ChatGPT will automatically discover OAuth endpoints via `.well-known/oauth-authorization-server`
+7. Click **"Save"** or **"Add connector"**
+
+> **Note:** ChatGPT uses Dynamic Client Registration (RFC 7591) and will automatically get unique OAuth credentials.
+
+### Step 3: Authorize the Connector
+1. After adding the connector, you'll be prompted to authorize
 2. ChatGPT will automatically register itself as an OAuth client
 3. You'll be redirected to the GetTranscribe authorization page
-4. Enter your GetTranscribe API key (from Step 1)
+4. Enter your GetTranscribe API key from Step 1 (starts with `gtr_`)
 5. Click **"✅ Authorize Access"**
-6. You'll be redirected back to ChatGPT with a success confirmation
+6. You'll be redirected back to ChatGPT
+
+### Step 4: Enable in Conversations
+1. Open a new chat in ChatGPT
+2. Click the **+** button near the message composer
+3. Choose **"Developer mode"**
+4. Toggle **ON** the GetTranscribe connector in the list
+5. The connector is now available for the assistant to use!
+
+### Step 5: Test the Integration
+To validate everything is working, try this prompt:
+
+```
+"Use the GetTranscribe connector to show my recent transcriptions"
+```
+
+ChatGPT will:
+- Display the tool call payload in the UI
+- Show the request being made to GetTranscribe
+- Display the results from your account
+
+> **📊 Debugging:** ChatGPT shows all tool-call payloads so you can confirm inputs and outputs. This is helpful for validating the integration.
 
 ## ✅ You're Ready!
 
 Now you can use GetTranscribe directly in ChatGPT conversations:
 
+> **💡 Pro Tip:** For initial testing, explicitly mention the connector: *"Use the GetTranscribe connector to show my transcriptions"*. Once working, ChatGPT will automatically use it when needed.
+
+> **⚠️ Write Operations:** Creating transcriptions requires manual confirmation unless you choose "Remember this approval" for the conversation.
+
 ### 🎥 Create Transcriptions
 ```
-"Transcribe this Instagram reel: https://www.instagram.com/reel/..."
-"Create a transcription from this TikTok: https://www.tiktok.com/..."
-"Transcribe this YouTube video: https://www.youtube.com/watch?v=..."
+"Use GetTranscribe to transcribe this Instagram reel: https://www.instagram.com/reel/..."
+"Transcribe this TikTok: https://www.tiktok.com/..."
+"Create a transcription from this YouTube video: https://www.youtube.com/watch?v=..."
 ```
 
 ### 📋 Browse & Search
