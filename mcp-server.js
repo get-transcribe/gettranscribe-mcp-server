@@ -704,6 +704,42 @@ async function main() {
       }
     });
 
+    // Enhanced: Add UI component for list_transcriptions (HTTP/SSE only)
+    // UI components work in ChatGPT but not in stdio clients like Claude Desktop
+    if (name === 'list_transcriptions' && response.data?.content?.[0]?.text) {
+      try {
+        const toolOutput = JSON.parse(response.data.content[0].text);
+        
+        // Create HTML with embedded React component for ChatGPT
+        const componentHTML = createComponentResponse(toolOutput);
+        
+        // Create fallback text summary
+        const textSummary = formatTranscriptionList(toolOutput);
+        
+        // Return both text and HTML component
+        // ChatGPT renders the HTML in an iframe, other clients use the text
+        return {
+          content: [
+            {
+              type: "text",
+              text: textSummary
+            },
+            {
+              type: "text",
+              text: componentHTML,
+              annotations: {
+                audience: ["user"]
+              }
+            }
+          ]
+        };
+      } catch (error) {
+        console.error('⚠️ Failed to create UI component:', error);
+        // Fallback to original response
+        return response.data;
+      }
+    }
+
     // Return the response from the service
     return response.data;
 
@@ -1036,7 +1072,7 @@ async function main() {
           }
         });
 
-        // Return the response from the service
+        // Return the response from the service (stdio mode - no UI components)
         return response.data;
 
       } catch (error) {

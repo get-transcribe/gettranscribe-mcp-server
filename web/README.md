@@ -2,6 +2,8 @@
 
 UI components for GetTranscribe that run inside ChatGPT using the [OpenAI Apps SDK](https://developers.openai.com/apps-sdk/build/custom-ux).
 
+> **⚠️ HTTP/SSE Transport Only:** These UI components work with HTTP/SSE transport (ChatGPT) but NOT with stdio transport (Claude Desktop). The server automatically disables UI components for stdio clients.
+
 ## Overview
 
 These React components render inside an iframe in ChatGPT conversations, communicating with the host via the `window.openai` API to:

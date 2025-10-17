@@ -75,3 +75,4 @@ npm-debug.log
 # Temporary files
 tmp/
 temp/
+web/dist/component.js
