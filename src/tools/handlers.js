@@ -1,6 +1,6 @@
-import { createClient } from '../utils/client.js';
-import { API_URL, DEFAULT_API_KEY } from '../config/environment.js';
 import { formatTranscriptionList } from '../../component-helper.js';
+import { API_URL, DEFAULT_API_KEY } from '../config/environment.js';
+import { createClient } from '../utils/client.js';
 
 export async function handleToolCall(name, args, httpApiKey = null) {
   try {
@@ -102,7 +102,7 @@ export async function handleToolCall(name, args, httpApiKey = null) {
       }
     });
 
-    if ((name === 'list_transcriptions' || name === 'get_transcription') && response.data?.content?.[0]?.text) {
+    if ((name === 'list_transcriptions' || name === 'get_transcription' || name === 'create_transcription') && response.data?.content?.[0]?.text) {
       try {
         const responseText = response.data.content[0].text;
         let toolOutput;
@@ -117,8 +117,9 @@ export async function handleToolCall(name, args, httpApiKey = null) {
         let textSummary;
         if (name === 'list_transcriptions') {
           textSummary = formatTranscriptionList(toolOutput);
-        } else if (name === 'get_transcription') {
-          textSummary = `📄 **Transcription #${toolOutput.id}**\n\n`;
+        } else if (name === 'get_transcription' || name === 'create_transcription') {
+          const prefix = name === 'create_transcription' ? '✅ **Transcription Created!**\n\n📄 **Transcription #' : '📄 **Transcription #';
+          textSummary = `${prefix}${toolOutput.id}**\n\n`;
           textSummary += `**Platform:** ${toolOutput.platform}\n`;
           if (toolOutput.duration) textSummary += `**Duration:** ${Math.floor(toolOutput.duration / 60)}:${String(toolOutput.duration % 60).padStart(2, '0')}\n`;
           if (toolOutput.word_count) textSummary += `**Word Count:** ${toolOutput.word_count}\n`;
@@ -130,6 +131,21 @@ export async function handleToolCall(name, args, httpApiKey = null) {
           if (toolOutput.video_url) textSummary += `**URL:** ${toolOutput.video_url}`;
         }
         
+        let outputTemplate, invoking, invoked;
+        if (name === 'list_transcriptions') {
+          outputTemplate = "ui://widget/transcription-list.html";
+          invoking = "Loading transcriptions";
+          invoked = "Transcriptions loaded";
+        } else if (name === 'create_transcription') {
+          outputTemplate = "ui://widget/transcription-created.html";
+          invoking = "Creating transcription...";
+          invoked = "Transcription created successfully!";
+        } else {
+          outputTemplate = "ui://widget/transcription-detail.html";
+          invoking = "Loading transcription";
+          invoked = "Transcription loaded";
+        }
+        
         return {
           content: [
             {
@@ -139,15 +155,9 @@ export async function handleToolCall(name, args, httpApiKey = null) {
           ],
           structuredContent: toolOutput,
           _meta: {
-            "openai/outputTemplate": name === 'list_transcriptions' 
-              ? "ui://widget/transcription-list.html"
-              : "ui://widget/transcription-detail.html",
-            "openai/toolInvocation/invoking": name === 'list_transcriptions' 
-              ? "Loading transcriptions"
-              : "Loading transcription",
-            "openai/toolInvocation/invoked": name === 'list_transcriptions' 
-              ? "Transcriptions loaded"
-              : "Transcription loaded",
+            "openai/outputTemplate": outputTemplate,
+            "openai/toolInvocation/invoking": invoking,
+            "openai/toolInvocation/invoked": invoked,
             "openai/widgetAccessible": true,
             "openai/resultCanProduceWidget": true
           }

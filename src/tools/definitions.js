@@ -27,6 +27,13 @@ export const TOOLS = [
         }
       },
       required: ["url"]
+    },
+    _meta: {
+      "openai/outputTemplate": "ui://widget/transcription-created.html",
+      "openai/toolInvocation/invoking": "Creating transcription...",
+      "openai/toolInvocation/invoked": "Transcription created successfully!",
+      "openai/widgetAccessible": true,
+      "openai/resultCanProduceWidget": true
     }
   },
   {

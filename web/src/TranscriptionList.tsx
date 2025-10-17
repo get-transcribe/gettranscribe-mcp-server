@@ -113,76 +113,24 @@ export function TranscriptionList() {
   const cardBg = isDark ? '#2a2a2a' : '#ffffff';
   const brandPurple = '#6942e2';
   const brandTeal = '#28e7c5';
-  const headerBg = '#081428';
 
   return (
     <div style={{
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      fontFamily: 'all-round-gothic, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
       backgroundColor: bgColor,
       color: textColor,
       minHeight: '100vh',
       maxHeight: displayMode === 'inline' ? `${maxHeight}px` : 'none',
-      overflow: 'auto'
+      overflow: 'auto',
+      padding: '20px 16px'
     }}>
-      {/* Header */}
       <div style={{
-        backgroundColor: headerBg,
-        margin: '-20px -20px 24px -20px',
-        padding: '16px 20px',
-        borderBottom: `1px solid rgba(8,20,40,0.2)`,
-        position: 'sticky',
-        top: 0,
-        zIndex: 10
+        maxWidth: '1200px',
+        margin: '0 auto'
       }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px'
-        }}>
-          {/* Logo Icon */}
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="rgb(40, 231, 197)"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{
-              width: '24px',
-              height: '24px',
-              flexShrink: 0
-            }}
-          >
-            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-            <line x1="12" x2="12" y1="19" y2="22" />
-          </svg>
-          
-          {/* Logo Text */}
-          <span style={{
-            fontSize: '20px',
-            fontWeight: '700',
-            color: '#ffffff',
-            fontFamily: 'system-ui, -apple-system, sans-serif'
-          }}>
-            GetTranscribe
-          </span>
-        </div>
-        
-        <p style={{ 
-          margin: '8px 0 0 0', 
-          fontSize: '13px', 
-          color: 'rgba(234,234,234,0.7)'
-        }}>
-          {toolOutput?.total || 0} transcriptions total
-        </p>
-      </div>
-      
-      <div style={{ padding: '0 20px 20px 20px' }}>
 
-        {/* Transcriptions List */}
-        {transcriptions.length === 0 ? (
+          {/* Transcriptions List */}
+          {transcriptions.length === 0 ? (
           <div style={{
             textAlign: 'center',
             padding: '48px 24px',
@@ -415,24 +363,24 @@ export function TranscriptionList() {
           </div>
         )}
 
-        {/* Footer */}
-        {transcriptions.length > 0 && toolOutput?.total && toolOutput.total > transcriptions.length && (
-          <div style={{
-            marginTop: '24px',
-            padding: '16px',
-            backgroundColor: cardBg,
-            borderRadius: '12px',
-            border: `1px solid ${borderColor}`,
-            textAlign: 'center'
-          }}>
-            <p style={{ margin: 0, fontSize: '14px', color: secondaryTextColor }}>
-              Showing {transcriptions.length} of {toolOutput.total} transcriptions
-            </p>
-            <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: secondaryTextColor }}>
-              Ask ChatGPT to "show more transcriptions" or "load next page"
-            </p>
-          </div>
-        )}
+          {/* Footer */}
+          {transcriptions.length > 0 && toolOutput?.total && toolOutput.total > transcriptions.length && (
+            <div style={{
+              marginTop: '24px',
+              padding: '16px',
+              backgroundColor: cardBg,
+              borderRadius: '12px',
+              border: `1px solid ${borderColor}`,
+              textAlign: 'center'
+            }}>
+              <p style={{ margin: 0, fontSize: '14px', color: secondaryTextColor }}>
+                Showing {transcriptions.length} of {toolOutput.total} transcriptions
+              </p>
+              <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: secondaryTextColor }}>
+                Ask ChatGPT to "show more transcriptions" or "load next page"
+              </p>
+            </div>
+          )}
       </div>
     </div>
   );

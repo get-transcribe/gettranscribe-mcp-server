@@ -1,7 +1,6 @@
 import { readFileSync } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { dirname } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -28,6 +27,16 @@ export function getResourcesList() {
           "openai/outputTemplate": "ui://widget/transcription-detail.html",
           "openai/widgetAccessible": true
         }
+      },
+      {
+        uri: "ui://widget/transcription-created.html",
+        name: "Transcription Created UI",
+        description: "Success view for newly created transcriptions",
+        mimeType: "text/html+skybridge",
+        _meta: {
+          "openai/outputTemplate": "ui://widget/transcription-created.html",
+          "openai/widgetAccessible": true
+        }
       }
     ]
   };
@@ -51,7 +60,7 @@ export function getResourceTemplates() {
 }
 
 export function readResourceContent(uri) {
-  if (uri === "ui://widget/transcription-list.html" || uri === "ui://widget/transcription-detail.html") {
+  if (uri === "ui://widget/transcription-list.html" || uri === "ui://widget/transcription-detail.html" || uri === "ui://widget/transcription-created.html") {
     let htmlTemplate;
     try {
       htmlTemplate = readFileSync(join(__dirname, '../../web/template.html'), 'utf8');
