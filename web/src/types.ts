@@ -108,6 +108,7 @@ export interface Transcription {
   created_at: string;
   thumbnail_url?: string;
   folder_id?: number;
+  word_count?: number;
 }
 
 export interface TranscriptionFolder {
@@ -125,7 +126,7 @@ export interface TranscriptionListOutput {
   skip: number;
 }
 
-export interface TranscriptionWidgetState {
+export interface TranscriptionWidgetState extends Record<string, unknown> {
   selectedId?: number | null;
   expandedIds?: number[];
   filters?: {
