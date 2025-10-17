@@ -169,6 +169,13 @@ const TOOLS = [
         }
       },
       required: ["transcription_id"]
+    },
+    _meta: {
+      "openai/outputTemplate": "ui://widget/transcription-detail.html",
+      "openai/toolInvocation/invoking": "Loading transcription",
+      "openai/toolInvocation/invoked": "Transcription loaded",
+      "openai/widgetAccessible": true,
+      "openai/resultCanProduceWidget": true
     }
   },
   {
