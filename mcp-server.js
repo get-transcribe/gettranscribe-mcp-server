@@ -367,12 +367,66 @@ async function main() {
     
     // OAuth Token endpoint
     app.post('/oauth/token', (req, res) => {
-      const { grant_type, code, client_id, client_secret } = req.body;
+      console.error(`🔐 [OAuth] Token request received`);
+      console.error(`🔐 [OAuth] Headers:`, JSON.stringify(req.headers, null, 2));
+      console.error(`🔐 [OAuth] Body:`, JSON.stringify(req.body, null, 2));
       
-      console.error(`🔐 [OAuth] Token request: grant_type=${grant_type}, code=${code}, client_id=${client_id}`);
+      let { grant_type, code, client_id, client_secret, redirect_uri } = req.body;
+      
+      // Support Basic Auth for client credentials (RFC 6749 Section 2.3.1)
+      const authHeader = req.headers['authorization'];
+      if (!client_id && authHeader && authHeader.startsWith('Basic ')) {
+        try {
+          const base64Credentials = authHeader.substring(6);
+          const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
+          const [headerClientId, headerClientSecret] = credentials.split(':');
+          client_id = headerClientId;
+          client_secret = headerClientSecret;
+          console.error(`🔐 [OAuth] Using Basic Auth credentials: client_id=${client_id}`);
+        } catch (error) {
+          console.error(`🔐 [OAuth] Error parsing Basic Auth:`, error);
+          return res.status(400).json({ 
+            error: 'invalid_request',
+            error_description: 'Invalid Basic Auth format'
+          });
+        }
+      }
+      
+      console.error(`🔐 [OAuth] Token request: grant_type=${grant_type}, code=${code}, client_id=${client_id}, redirect_uri=${redirect_uri}`);
+      
+      if (!grant_type) {
+        return res.status(400).json({ 
+          error: 'invalid_request',
+          error_description: 'Missing grant_type parameter'
+        });
+      }
       
       if (grant_type !== 'authorization_code') {
-        return res.status(400).json({ error: 'unsupported_grant_type' });
+        return res.status(400).json({ 
+          error: 'unsupported_grant_type',
+          error_description: `Grant type '${grant_type}' is not supported. Only 'authorization_code' is supported.`
+        });
+      }
+      
+      if (!code) {
+        return res.status(400).json({ 
+          error: 'invalid_request',
+          error_description: 'Missing code parameter'
+        });
+      }
+      
+      if (!client_id) {
+        return res.status(400).json({ 
+          error: 'invalid_request',
+          error_description: 'Missing client_id parameter'
+        });
+      }
+      
+      if (!client_secret) {
+        return res.status(400).json({ 
+          error: 'invalid_client',
+          error_description: 'Missing client_secret parameter'
+        });
       }
       
       // Validate client credentials - support both hardcoded and dynamically registered clients
@@ -382,12 +436,40 @@ async function main() {
       );
       
       if (!isValidClient) {
-        return res.status(401).json({ error: 'invalid_client' });
+        console.error(`🔐 [OAuth] Invalid client credentials: client_id=${client_id}`);
+        console.error(`🔐 [OAuth] Available registered clients:`, Array.from(registeredClients.keys()));
+        return res.status(401).json({ 
+          error: 'invalid_client',
+          error_description: 'Invalid client credentials'
+        });
       }
       
       const authData = authCodes.get(code);
-      if (!authData || authData.expires < Date.now()) {
-        return res.status(400).json({ error: 'invalid_or_expired_code' });
+      if (!authData) {
+        console.error(`🔐 [OAuth] Authorization code not found: ${code}`);
+        console.error(`🔐 [OAuth] Available auth codes:`, Array.from(authCodes.keys()));
+        return res.status(400).json({ 
+          error: 'invalid_grant',
+          error_description: 'Authorization code not found or invalid'
+        });
+      }
+      
+      if (authData.expires < Date.now()) {
+        console.error(`🔐 [OAuth] Authorization code expired: ${code}`);
+        authCodes.delete(code);
+        return res.status(400).json({ 
+          error: 'invalid_grant',
+          error_description: 'Authorization code has expired'
+        });
+      }
+      
+      // Validate that the client_id matches the one that requested the auth code
+      if (authData.client_id !== client_id) {
+        console.error(`🔐 [OAuth] Client ID mismatch: expected ${authData.client_id}, got ${client_id}`);
+        return res.status(400).json({ 
+          error: 'invalid_grant',
+          error_description: 'Authorization code was issued to a different client'
+        });
       }
       
       // Generate access token
@@ -397,7 +479,7 @@ async function main() {
       // Clean up auth code
       authCodes.delete(code);
       
-      console.error(`🔐 [OAuth] Access token generated successfully`);
+      console.error(`🔐 [OAuth] Access token generated successfully for client: ${client_id}`);
       
       res.json({
         access_token: accessToken,
@@ -408,9 +490,12 @@ async function main() {
     
     // OAuth Dynamic Client Registration endpoint (RFC7591)
     app.post('/oauth/register', (req, res) => {
+      console.error(`🔐 [OAuth] Client registration request received`);
+      console.error(`🔐 [OAuth] Request body:`, JSON.stringify(req.body, null, 2));
+      
       const { client_name, redirect_uris, client_uri } = req.body;
       
-      console.error(`🔐 [OAuth] Client registration request: client_name=${client_name}, redirect_uris=${JSON.stringify(redirect_uris)}`);
+      console.error(`🔐 [OAuth] Client registration: client_name=${client_name}, redirect_uris=${JSON.stringify(redirect_uris)}`);
       
       // For ChatGPT/OpenAI, we expect specific patterns
       const isValidChatGPT = client_name && (
@@ -420,6 +505,7 @@ async function main() {
       );
       
       if (!isValidChatGPT) {
+        console.error(`🔐 [OAuth] Registration rejected: Not a ChatGPT/OpenAI client`);
         return res.status(400).json({
           error: 'invalid_client_metadata',
           error_description: 'This registration endpoint is specifically for ChatGPT/OpenAI clients'
@@ -438,7 +524,8 @@ async function main() {
         created_at: Math.floor(Date.now() / 1000)
       });
       
-      console.error(`🔐 [OAuth] Registered new client: ${clientId}`);
+      console.error(`🔐 [OAuth] ✅ Registered new client: ${clientId}`);
+      console.error(`🔐 [OAuth] Total registered clients: ${registeredClients.size}`);
       
       // Return client credentials (RFC7591 Section 3.2.1)
       res.status(201).json({
