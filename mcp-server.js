@@ -9,6 +9,7 @@ import axios from 'axios';
 import { randomUUID } from 'crypto';
 import express from 'express';
 import jwt from 'jsonwebtoken';
+import { createComponentResponse, formatTranscriptionList } from './component-helper.js';
 
 // Configuration from environment variables
 const API_URL = process.env.GETTRANSCRIBE_API_URL || 'https://api.gettranscribe.ai';
