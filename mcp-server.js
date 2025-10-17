@@ -78,6 +78,7 @@ const mcpServer = new Server(
       tools: {
         listChanged: true
       },
+      resources: {}
     },
     protocolVersion: '2025-06-18',
   }
@@ -587,6 +588,7 @@ async function main() {
             tools: {
               listChanged: true
             },
+            resources: {}
           },
           protocolVersion: '2025-06-18',
         }
