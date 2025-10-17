@@ -4,12 +4,12 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { 
-  CallToolRequestSchema, 
-  ListToolsRequestSchema,
-  ListResourcesRequestSchema,
-  ReadResourceRequestSchema,
-  ListResourceTemplatesRequestSchema
+import {
+	CallToolRequestSchema,
+	ListResourcesRequestSchema,
+	ListResourceTemplatesRequestSchema,
+	ListToolsRequestSchema,
+	ReadResourceRequestSchema
 } from '@modelcontextprotocol/sdk/types.js';
 import axios from 'axios';
 import { randomUUID } from 'crypto';
