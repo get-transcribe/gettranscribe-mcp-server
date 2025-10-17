@@ -106,13 +106,14 @@ export function TranscriptionList() {
   };
 
   const isDark = theme === 'dark';
-  const bgColor = isDark ? '#081428' : '#EAEAEA';
+  const bgColor = isDark ? '#EAEAEA' : '#EAEAEA';
   const textColor = isDark ? '#EAEAEA' : '#081428';
   const secondaryTextColor = isDark ? 'rgba(234,234,234,0.6)' : 'rgba(8,20,40,0.6)';
   const borderColor = isDark ? 'rgba(234,234,234,0.1)' : 'rgba(8,20,40,0.1)';
   const cardBg = isDark ? '#2a2a2a' : '#ffffff';
   const brandPurple = '#6942e2';
   const brandTeal = '#28e7c5';
+  const headerBg = '#081428';
 
   return (
     <div style={{
@@ -120,123 +121,182 @@ export function TranscriptionList() {
       backgroundColor: bgColor,
       color: textColor,
       minHeight: '100vh',
-      padding: '20px',
       maxHeight: displayMode === 'inline' ? `${maxHeight}px` : 'none',
       overflow: 'auto'
     }}>
       {/* Header */}
       <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '24px',
-        paddingBottom: '16px',
-        borderBottom: `1px solid ${borderColor}`
+        backgroundColor: headerBg,
+        margin: '-20px -20px 24px -20px',
+        padding: '16px 20px',
+        borderBottom: `1px solid rgba(8,20,40,0.2)`,
+        position: 'sticky',
+        top: 0,
+        zIndex: 10
       }}>
-        <div>
-          <h1 style={{ 
-            margin: 0, 
-            fontSize: '24px', 
-            fontWeight: '700',
-            background: `linear-gradient(135deg, ${brandPurple} 0%, ${brandTeal} 100%)`,
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text'
-          }}>
-            🎥 GetTranscribe
-          </h1>
-          <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: secondaryTextColor }}>
-            {toolOutput?.total || 0} transcriptions total
-          </p>
-        </div>
-      </div>
-
-      {/* Transcriptions List */}
-      {transcriptions.length === 0 ? (
         <div style={{
-          textAlign: 'center',
-          padding: '48px 24px',
-          backgroundColor: cardBg,
-          borderRadius: '16px',
-          border: `1px solid ${borderColor}`
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px'
         }}>
-          <p style={{ fontSize: '48px', margin: '0 0 16px 0' }}>🎬</p>
-          <p style={{ fontSize: '18px', margin: '0 0 8px 0', fontWeight: '600', color: textColor }}>
-            No transcriptions yet
-          </p>
-          <p style={{ fontSize: '14px', margin: 0, color: secondaryTextColor }}>
-            Create one by sharing a video URL with ChatGPT
-          </p>
+          {/* Logo Icon */}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="rgb(40, 231, 197)"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{
+              width: '24px',
+              height: '24px',
+              flexShrink: 0
+            }}
+          >
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <line x1="12" x2="12" y1="19" y2="22" />
+          </svg>
+          
+          {/* Logo Text */}
+          <span style={{
+            fontSize: '20px',
+            fontWeight: '700',
+            color: '#ffffff',
+            fontFamily: 'system-ui, -apple-system, sans-serif'
+          }}>
+            GetTranscribe
+          </span>
         </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {transcriptions.map((transcription) => {
-            const isExpanded = expandedIds.includes(transcription.id);
-            const wordCount = transcription.word_count || 0;
-            
-            return (
-              <div
-                key={transcription.id}
-                style={{
-                  backgroundColor: cardBg,
-                  border: `1px solid ${borderColor}`,
-                  borderRadius: '16px',
-                  padding: '20px',
-                  boxShadow: isDark ? 'none' : '0 2px 12px rgba(0,0,0,0.08)',
-                  transition: 'all 0.2s'
-                }}
-              >
-                {/* Header Row */}
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-start',
-                  marginBottom: '12px'
-                }}>
-                  <div style={{ flex: 1 }}>
-                    {/* Platform Badge */}
-                    <div style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '4px 10px',
-                      backgroundColor: `${brandPurple}20`,
-                      borderRadius: '12px',
-                      fontSize: '11px',
-                      fontWeight: '600',
-                      marginBottom: '8px',
-                      color: brandPurple,
-                      textTransform: 'uppercase'
-                    }}>
-                      <span>{getPlatformIcon(transcription.platform)}</span>
-                      <span>{transcription.platform}</span>
-                    </div>
-                    
-                    {/* Date */}
-                    <p style={{
-                      margin: 0,
-                      fontSize: '12px',
-                      color: secondaryTextColor
-                    }}>
-                      {formatDate(transcription.created_at)}
-                    </p>
-                  </div>
-                  
-                  {/* Stats */}
+        
+        <p style={{ 
+          margin: '8px 0 0 0', 
+          fontSize: '13px', 
+          color: 'rgba(234,234,234,0.7)'
+        }}>
+          {toolOutput?.total || 0} transcriptions total
+        </p>
+      </div>
+      
+      <div style={{ padding: '0 20px 20px 20px' }}>
+
+        {/* Transcriptions List */}
+        {transcriptions.length === 0 ? (
+          <div style={{
+            textAlign: 'center',
+            padding: '48px 24px',
+            backgroundColor: cardBg,
+            borderRadius: '16px',
+            border: `1px solid ${borderColor}`
+          }}>
+            <p style={{ fontSize: '48px', margin: '0 0 16px 0' }}>🎬</p>
+            <p style={{ fontSize: '18px', margin: '0 0 8px 0', fontWeight: '600', color: textColor }}>
+              No transcriptions yet
+            </p>
+            <p style={{ fontSize: '14px', margin: 0, color: secondaryTextColor }}>
+              Create one by sharing a video URL with ChatGPT
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {transcriptions.map((transcription) => {
+              const isExpanded = expandedIds.includes(transcription.id);
+              const wordCount = transcription.word_count || 0;
+              
+              return (
+                <div
+                  key={transcription.id}
+                  style={{
+                    backgroundColor: cardBg,
+                    border: `1px solid ${borderColor}`,
+                    borderRadius: '16px',
+                    padding: '20px',
+                    boxShadow: isDark ? 'none' : '0 2px 12px rgba(0,0,0,0.08)',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {/* Thumbnail and Header Row */}
                   <div style={{
                     display: 'flex',
                     gap: '16px',
-                    fontSize: '12px',
-                    color: secondaryTextColor
+                    marginBottom: '12px'
                   }}>
-                    {transcription.duration && (
-                      <span>⏱️ {Math.round(transcription.duration / 60)}:{String(transcription.duration % 60).padStart(2, '0')}</span>
+                    {/* Thumbnail */}
+                    {transcription.thumbnail_url && (
+                      <div style={{
+                        width: '120px',
+                        height: '90px',
+                        flexShrink: 0,
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                        backgroundColor: isDark ? 'rgba(234,234,234,0.05)' : 'rgba(8,20,40,0.03)'
+                      }}>
+                        <img 
+                          src={transcription.thumbnail_url} 
+                          alt="Video thumbnail"
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover'
+                          }}
+                        />
+                      </div>
                     )}
-                    {wordCount > 0 && (
-                      <span>📝 {wordCount.toLocaleString()} words</span>
-                    )}
+                    
+                    {/* Header Info */}
+                    <div style={{
+                      flex: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between'
+                    }}>
+                      <div>
+                        {/* Platform Badge */}
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '4px 10px',
+                          backgroundColor: `${brandPurple}20`,
+                          borderRadius: '12px',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          marginBottom: '8px',
+                          color: brandPurple,
+                          textTransform: 'uppercase'
+                        }}>
+                          <span>{getPlatformIcon(transcription.platform)}</span>
+                          <span>{transcription.platform}</span>
+                        </div>
+                        
+                        {/* Date */}
+                        <p style={{
+                          margin: 0,
+                          fontSize: '12px',
+                          color: secondaryTextColor
+                        }}>
+                          {formatDate(transcription.created_at)}
+                        </p>
+                      </div>
+                      
+                      {/* Stats */}
+                      <div style={{
+                        display: 'flex',
+                        gap: '16px',
+                        fontSize: '12px',
+                        color: secondaryTextColor,
+                        flexWrap: 'wrap'
+                      }}>
+                        {transcription.duration && (
+                          <span>⏱️ {Math.round(transcription.duration / 60)}:{String(transcription.duration % 60).padStart(2, '0')}</span>
+                        )}
+                        {wordCount > 0 && (
+                          <span>📝 {wordCount.toLocaleString()} words</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
 
                 {/* Transcription Preview/Full */}
                 <div style={{
@@ -350,29 +410,30 @@ export function TranscriptionList() {
                   </button>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
 
-      {/* Footer */}
-      {transcriptions.length > 0 && toolOutput?.total && toolOutput.total > transcriptions.length && (
-        <div style={{
-          marginTop: '24px',
-          padding: '16px',
-          backgroundColor: cardBg,
-          borderRadius: '12px',
-          border: `1px solid ${borderColor}`,
-          textAlign: 'center'
-        }}>
-          <p style={{ margin: 0, fontSize: '14px', color: secondaryTextColor }}>
-            Showing {transcriptions.length} of {toolOutput.total} transcriptions
-          </p>
-          <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: secondaryTextColor }}>
-            Ask ChatGPT to "show more transcriptions" or "load next page"
-          </p>
-        </div>
-      )}
+        {/* Footer */}
+        {transcriptions.length > 0 && toolOutput?.total && toolOutput.total > transcriptions.length && (
+          <div style={{
+            marginTop: '24px',
+            padding: '16px',
+            backgroundColor: cardBg,
+            borderRadius: '12px',
+            border: `1px solid ${borderColor}`,
+            textAlign: 'center'
+          }}>
+            <p style={{ margin: 0, fontSize: '14px', color: secondaryTextColor }}>
+              Showing {transcriptions.length} of {toolOutput.total} transcriptions
+            </p>
+            <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: secondaryTextColor }}>
+              Ask ChatGPT to "show more transcriptions" or "load next page"
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

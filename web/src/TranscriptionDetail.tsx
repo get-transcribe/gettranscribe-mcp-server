@@ -64,20 +64,21 @@ export function TranscriptionDetail() {
   };
 
   const isDark = theme === 'dark';
-  const bgColor = isDark ? '#081428' : '#EAEAEA';
+  const bgColor = isDark ? '#EAEAEA' : '#EAEAEA';
   const textColor = isDark ? '#EAEAEA' : '#081428';
   const secondaryTextColor = isDark ? 'rgba(234,234,234,0.6)' : 'rgba(8,20,40,0.6)';
   const borderColor = isDark ? 'rgba(234,234,234,0.1)' : 'rgba(8,20,40,0.1)';
   const cardBg = isDark ? '#2a2a2a' : '#ffffff';
   const brandPurple = '#6942e2';
   const brandTeal = '#28e7c5';
+  const headerBg = '#081428';
 
   if (!transcription) {
     return (
       <div style={{
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         backgroundColor: bgColor,
-        color: textColor,
+        color: '#081428',
         minHeight: '100vh',
         padding: '20px',
         display: 'flex',
@@ -95,31 +96,66 @@ export function TranscriptionDetail() {
       backgroundColor: bgColor,
       color: textColor,
       minHeight: '100vh',
-      padding: '20px',
       maxHeight: displayMode === 'inline' ? `${maxHeight}px` : 'none',
       overflow: 'auto'
     }}>
       {/* Header */}
       <div style={{
-        marginBottom: '24px',
-        paddingBottom: '16px',
-        borderBottom: `1px solid ${borderColor}`
+        backgroundColor: headerBg,
+        margin: '-20px -20px 24px -20px',
+        padding: '16px 20px',
+        borderBottom: `1px solid rgba(8,20,40,0.2)`,
+        position: 'sticky',
+        top: 0,
+        zIndex: 10
       }}>
-        <h1 style={{ 
-          margin: '0 0 8px 0', 
-          fontSize: '24px', 
-          fontWeight: '700',
-          background: `linear-gradient(135deg, ${brandPurple} 0%, ${brandTeal} 100%)`,
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text'
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          marginBottom: '8px'
         }}>
-          🎥 Transcription #{transcription.id}
-        </h1>
-        <p style={{ margin: 0, fontSize: '14px', color: secondaryTextColor }}>
-          {transcription.video_title || `${transcription.platform} video`}
+          {/* Logo Icon */}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="rgb(40, 231, 197)"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{
+              width: '24px',
+              height: '24px',
+              flexShrink: 0
+            }}
+          >
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <line x1="12" x2="12" y1="19" y2="22" />
+          </svg>
+          
+          {/* Logo Text */}
+          <span style={{
+            fontSize: '20px',
+            fontWeight: '700',
+            color: '#ffffff',
+            fontFamily: 'system-ui, -apple-system, sans-serif'
+          }}>
+            GetTranscribe
+          </span>
+        </div>
+        
+        <p style={{ 
+          margin: 0, 
+          fontSize: '13px', 
+          color: 'rgba(234,234,234,0.7)'
+        }}>
+          Transcription #{transcription.id} • {transcription.video_title || `${transcription.platform} video`}
         </p>
       </div>
+      
+      <div style={{ padding: '0 20px 20px 20px' }}>
 
       {/* Video Info Card */}
       <div style={{
@@ -379,6 +415,7 @@ export function TranscriptionDetail() {
             </button>
           )}
         </div>
+      </div>
       </div>
     </div>
   );
