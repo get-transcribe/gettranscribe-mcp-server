@@ -126,11 +126,11 @@ export interface TranscriptionListOutput {
 }
 
 export interface TranscriptionWidgetState {
-  favorites?: number[];
+  selectedId?: number | null;
+  expandedIds?: number[];
   filters?: {
     platform?: string;
     folder_id?: number;
   };
-  selectedId?: number;
 }
 

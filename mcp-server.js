@@ -615,6 +615,16 @@ async function main() {
                 "openai/outputTemplate": "ui://widget/transcription-list.html",
                 "openai/widgetAccessible": true
               }
+            },
+            {
+              uri: "ui://widget/transcription-detail.html",
+              name: "Transcription Detail UI",
+              description: "Detailed view of a single transcription",
+              mimeType: "text/html+skybridge",
+              _meta: {
+                "openai/outputTemplate": "ui://widget/transcription-detail.html",
+                "openai/widgetAccessible": true
+              }
             }
           ]
         };
@@ -623,7 +633,7 @@ async function main() {
       serverInstance.setRequestHandler(ReadResourceRequestSchema, async (request) => {
         const { uri } = request.params;
         
-        if (uri === "ui://widget/transcription-list.html") {
+        if (uri === "ui://widget/transcription-list.html" || uri === "ui://widget/transcription-detail.html") {
           const { readFileSync } = await import('fs');
           const { join } = await import('path');
           const { fileURLToPath } = await import('url');
@@ -794,9 +804,9 @@ async function main() {
       }
     });
 
-    // Enhanced: Add UI component for list_transcriptions (HTTP/SSE only)
+    // Enhanced: Add UI component for list_transcriptions and get_transcription (HTTP/SSE only)
     // UI components work in ChatGPT but not in stdio clients like Claude Desktop
-    if (name === 'list_transcriptions' && response.data?.content?.[0]?.text) {
+    if ((name === 'list_transcriptions' || name === 'get_transcription') && response.data?.content?.[0]?.text) {
       try {
         const responseText = response.data.content[0].text;
         let toolOutput;
@@ -810,8 +820,23 @@ async function main() {
           return response.data;
         }
         
-        // Create fallback text summary
-        const textSummary = formatTranscriptionList(toolOutput);
+        // Create fallback text summary based on tool
+        let textSummary;
+        if (name === 'list_transcriptions') {
+          textSummary = formatTranscriptionList(toolOutput);
+        } else if (name === 'get_transcription') {
+          // Format single transcription
+          textSummary = `📄 **Transcription #${toolOutput.id}**\n\n`;
+          textSummary += `**Platform:** ${toolOutput.platform}\n`;
+          if (toolOutput.duration) textSummary += `**Duration:** ${Math.floor(toolOutput.duration / 60)}:${String(toolOutput.duration % 60).padStart(2, '0')}\n`;
+          if (toolOutput.word_count) textSummary += `**Word Count:** ${toolOutput.word_count}\n`;
+          if (toolOutput.language) textSummary += `**Language:** ${toolOutput.language.toUpperCase()}\n`;
+          textSummary += `**Created:** ${new Date(toolOutput.created_at).toLocaleDateString()}\n\n`;
+          if (toolOutput.transcription) {
+            textSummary += `**Transcription:**\n${toolOutput.transcription}\n\n`;
+          }
+          if (toolOutput.video_url) textSummary += `**URL:** ${toolOutput.video_url}`;
+        }
         
         // Return response with metadata pointing to UI template
         // Following OpenAI Apps SDK pattern for UI components
@@ -824,9 +849,15 @@ async function main() {
           ],
           structuredContent: toolOutput,
           _meta: {
-            "openai/outputTemplate": "ui://widget/transcription-list.html",
-            "openai/toolInvocation/invoking": "Loading transcriptions",
-            "openai/toolInvocation/invoked": "Transcriptions loaded",
+            "openai/outputTemplate": name === 'list_transcriptions' 
+              ? "ui://widget/transcription-list.html"
+              : "ui://widget/transcription-detail.html",
+            "openai/toolInvocation/invoking": name === 'list_transcriptions' 
+              ? "Loading transcriptions"
+              : "Loading transcription",
+            "openai/toolInvocation/invoked": name === 'list_transcriptions' 
+              ? "Transcriptions loaded"
+              : "Transcription loaded",
             "openai/widgetAccessible": true,
             "openai/resultCanProduceWidget": true
           }
