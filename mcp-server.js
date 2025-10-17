@@ -708,7 +708,18 @@ async function main() {
     // UI components work in ChatGPT but not in stdio clients like Claude Desktop
     if (name === 'list_transcriptions' && response.data?.content?.[0]?.text) {
       try {
-        const toolOutput = JSON.parse(response.data.content[0].text);
+        const responseText = response.data.content[0].text;
+        let toolOutput;
+        
+        // Try to parse as JSON first
+        try {
+          toolOutput = JSON.parse(responseText);
+        } catch (parseError) {
+          // If it's already formatted text, we need to extract data differently
+          // For now, skip UI component if backend returns formatted text
+          console.error('⚠️ Backend returned formatted text, not JSON. Skipping UI component.');
+          return response.data;
+        }
         
         // Create HTML with embedded React component for ChatGPT
         const componentHTML = createComponentResponse(toolOutput);
