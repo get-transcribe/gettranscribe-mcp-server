@@ -4,12 +4,18 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { 
+  CallToolRequestSchema, 
+  ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
+  ListResourceTemplatesRequestSchema
+} from '@modelcontextprotocol/sdk/types.js';
 import axios from 'axios';
 import { randomUUID } from 'crypto';
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import { createComponentResponse, formatTranscriptionList } from './component-helper.js';
+import { formatTranscriptionList } from './component-helper.js';
 
 // Configuration from environment variables
 const API_URL = process.env.GETTRANSCRIBE_API_URL || 'https://api.gettranscribe.ai';
@@ -187,6 +193,13 @@ const TOOLS = [
           description: "Number of results to skip for pagination"
         }
       }
+    },
+    _meta: {
+      "openai/outputTemplate": "ui://widget/transcription-list.html",
+      "openai/toolInvocation/invoking": "Loading transcriptions",
+      "openai/toolInvocation/invoked": "Transcriptions loaded",
+      "openai/widgetAccessible": true,
+      "openai/resultCanProduceWidget": true
     }
   },
   {
@@ -587,6 +600,80 @@ async function main() {
   };
 });
 
+      // Resource handlers for UI components (OpenAI Apps SDK)
+      serverInstance.setRequestHandler(ListResourcesRequestSchema, async () => {
+        return {
+          resources: [
+            {
+              uri: "ui://widget/transcription-list.html",
+              name: "Transcription List UI",
+              description: "Interactive list of transcriptions",
+              mimeType: "text/html+skybridge",
+              _meta: {
+                "openai/outputTemplate": "ui://widget/transcription-list.html",
+                "openai/widgetAccessible": true
+              }
+            }
+          ]
+        };
+      });
+
+      serverInstance.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+        const { uri } = request.params;
+        
+        if (uri === "ui://widget/transcription-list.html") {
+          const { readFileSync } = await import('fs');
+          const { join } = await import('path');
+          const { fileURLToPath } = await import('url');
+          const { dirname } = await import('path');
+          
+          const __filename = fileURLToPath(import.meta.url);
+          const __dirname = dirname(__filename);
+          
+          let htmlTemplate;
+          try {
+            htmlTemplate = readFileSync(join(__dirname, 'web/template.html'), 'utf8');
+            const componentJS = readFileSync(join(__dirname, 'web/dist/component.js'), 'utf8');
+            htmlTemplate = htmlTemplate.replace('{{COMPONENT_CODE}}', componentJS);
+          } catch (error) {
+            throw new Error('Component bundle not found. Run: cd web && npm run build');
+          }
+          
+          return {
+            contents: [
+              {
+                uri,
+                mimeType: "text/html+skybridge",
+                text: htmlTemplate,
+                _meta: {
+                  "openai/outputTemplate": uri,
+                  "openai/widgetAccessible": true
+                }
+              }
+            ]
+          };
+        }
+        
+        throw new Error(`Unknown resource: ${uri}`);
+      });
+
+      serverInstance.setRequestHandler(ListResourceTemplatesRequestSchema, async () => {
+        return {
+          resourceTemplates: [
+            {
+              uriTemplate: "ui://widget/transcription-list.html",
+              name: "Transcription List UI",
+              description: "Interactive list of transcriptions",
+              mimeType: "text/html+skybridge",
+              _meta: {
+                "openai/outputTemplate": "ui://widget/transcription-list.html",
+                "openai/widgetAccessible": true
+              }
+            }
+          ]
+        };
+      });
+
       serverInstance.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
@@ -716,34 +803,31 @@ async function main() {
         try {
           toolOutput = JSON.parse(responseText);
         } catch (parseError) {
-          // If it's already formatted text, we need to extract data differently
-          // For now, skip UI component if backend returns formatted text
+          // If it's already formatted text, skip UI component
           console.error('⚠️ Backend returned formatted text, not JSON. Skipping UI component.');
           return response.data;
         }
         
-        // Create HTML with embedded React component for ChatGPT
-        const componentHTML = createComponentResponse(toolOutput);
-        
         // Create fallback text summary
         const textSummary = formatTranscriptionList(toolOutput);
         
-        // Return both text and HTML component
-        // ChatGPT renders the HTML in an iframe, other clients use the text
+        // Return response with metadata pointing to UI template
+        // Following OpenAI Apps SDK pattern for UI components
         return {
           content: [
             {
               type: "text",
               text: textSummary
-            },
-            {
-              type: "text",
-              text: componentHTML,
-              annotations: {
-                audience: ["user"]
-              }
             }
-          ]
+          ],
+          structuredContent: toolOutput,
+          _meta: {
+            "openai/outputTemplate": "ui://widget/transcription-list.html",
+            "openai/toolInvocation/invoking": "Loading transcriptions",
+            "openai/toolInvocation/invoked": "Transcriptions loaded",
+            "openai/widgetAccessible": true,
+            "openai/resultCanProduceWidget": true
+          }
         };
       } catch (error) {
         console.error('⚠️ Failed to create UI component:', error);
