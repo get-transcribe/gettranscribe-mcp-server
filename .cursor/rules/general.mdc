@@ -19,3 +19,27 @@ transports.md
 
 We use the library https://github.com/modelcontextprotocol/typescript-sdk for which you can find the docuemntation on /Users/danielvengoechea/proyectos/get-transcribe/gettranscribe-mcp-server/docs-model-context-protocol/typescript-sdk.md
 
+
+
+## server structure
+
+gettranscribe-mcp-server/
+├── mcp-server.js (archivo principal simplificado)
+├── src/
+│   ├── config/
+│   │   └── environment.js (variables de entorno y configuración)
+│   ├── auth/
+│   │   ├── oauth.js (lógica OAuth completa)
+│   │   └── jwt.js (funciones JWT)
+│   ├── tools/
+│   │   ├── definitions.js (definiciones de las herramientas)
+│   │   └── handlers.js (manejadores de las herramientas)
+│   ├── server/
+│   │   ├── instance.js (creación de instancias del servidor)
+│   │   ├── handlers.js (handlers de recursos y herramientas)
+│   │   └── resources.js (definiciones de recursos UI)
+│   ├── transport/
+│   │   ├── http.js (configuración del transporte HTTP)
+│   │   └── stdio.js (configuración del transporte stdio)
+│   └── utils/
+│       └── client.js (cliente de axios)

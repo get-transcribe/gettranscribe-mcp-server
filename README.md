@@ -10,6 +10,12 @@ MCP (Model Context Protocol) server for [GetTranscribe](https://gettranscribe.ai
 
 📖 **See [TRANSPORT-COMPARISON.md](./TRANSPORT-COMPARISON.md) for detailed transport comparison and usage guide.**
 
+## 📐 Architecture
+
+This server has been refactored into a modular architecture for better maintainability:
+- 📖 **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Complete architecture documentation
+- 📊 **[REFACTORING-SUMMARY.md](./REFACTORING-SUMMARY.md)** - Refactoring details and benefits
+
 ## 🔗 Client-Specific Setup
 
 ### 🤖 ChatGPT Users
