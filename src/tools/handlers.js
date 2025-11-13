@@ -159,7 +159,8 @@ export async function handleToolCall(name, args, httpApiKey = null) {
             "openai/toolInvocation/invoking": invoking,
             "openai/toolInvocation/invoked": invoked,
             "openai/widgetAccessible": true,
-            "openai/resultCanProduceWidget": true
+            "openai/resultCanProduceWidget": true,
+            "tool_name": name
           }
         };
       } catch (error) {
