@@ -1,0 +1,1 @@
+This folder contains the built output assets for the worker "gettranscribe-mcp-server" generated at 2026-04-03T16:20:05.548Z.
