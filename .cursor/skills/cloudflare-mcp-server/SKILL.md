@@ -40,8 +40,10 @@ gettranscribe-mcp-server/
 ├── src/
 │   ├── index.ts              # Entry point: creates McpServer, registers tools, exports fetch handler
 │   ├── tools/
-│   │   ├── transcriptions.ts # Transcription tools (create, get, list)
-│   │   └── folders.ts        # Folder tools (create, get, list)
+│   │   ├── transcriptions.ts # Transcription tools (get, list)
+│   │   ├── jobs.ts           # Async transcription job tools (create, poll status) — only create path for MCP; create returns platform wait guidance from historical duration percentiles
+│   │   ├── folders.ts        # Folder tools (create, get, list)
+│   │   └── downloads.ts      # Video download tool (fresh CDN URL via download-video REST service)
 │   └── services/
 │       └── api-client.ts     # Centralized fetch client for backend communication
 ├── wrangler.toml             # Cloudflare Worker config
@@ -154,11 +156,15 @@ function createServer(env: Env) {
 }
 ```
 
-### Step 3: Add backend handler
+### Step 3: Add backend handler (only for `POST /mcp` tools)
 
 The backend must also handle the new tool. In `gettranscribe-backend`:
 1. Create handler in `src/services/mcp/hooks/your-tool-name.js`
 2. Register in `src/services/mcp/mcp.class.js` under `tools/call` dispatch
+
+### Alternative: call a backend REST service directly
+
+If the backend already exposes a REST service that supports API-key auth (`authenticate('jwt', 'apiKey')`) plus its own billing/validation hooks, the Worker tool can call it directly and skip Step 3 entirely. Example: `gettranscribe_download_video` in `src/tools/downloads.ts` does `apiRequest(env, apiKey, "download-video", { method: "POST", body: { url } })` — the `download-video` service handles balance check, platform resolution, and the $0.01 wallet debit on its own. Prefer this pattern when the REST service already exists; use the `POST /mcp` dispatch when you need a custom MCP-shaped handler.
 
 ## Tool Naming Convention
 
@@ -290,6 +296,7 @@ If `workers.dev` shows "Inactive" in the dashboard, enable it via: Worker > Sett
 - `wrangler tail` — live log streaming from production
 - `wrangler deployments list` — see deployment history
 - Check `Accept` headers: clients must send `Accept: application/json, text/event-stream`
+- `GETTRANSCRIBE_API_KEY=gtr_... node examples/debug-oauth-flow.mjs` — replays the full OAuth flow + tools/list + a real tool call against production. Optional flags: `TEST_JOBS=1` (full async transcription job flow, costs credits) and `TEST_DOWNLOAD=1` (download_video tool, costs $0.01). Both accept `TEST_JOBS_URL` / `TEST_DOWNLOAD_URL` overrides.
 
 ## Important Constraints
 

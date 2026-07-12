@@ -74,7 +74,7 @@ function formatTranscriptionListMarkdown(
   total: number
 ): string {
   if (data.length === 0) {
-    return "No transcriptions found. Create one by providing a video URL.";
+    return "No transcriptions found. Create one with gettranscribe_create_transcription_job.";
   }
 
   const lines: string[] = [];
@@ -125,74 +125,6 @@ function noApiKeyError() {
 }
 
 export function registerTranscriptionTools(server: McpServer, env: Env) {
-  server.registerTool(
-    "gettranscribe_create_transcription",
-    {
-      title: "Create Transcription",
-      description: `Create a new transcription from a video URL. Supports Instagram, TikTok, YouTube, and Meta (Facebook) videos. The transcription process downloads the video, extracts audio, and transcribes it using AI. This may take 10-60 seconds depending on video length.`,
-      inputSchema: {
-        url: z.string().url().describe("Full video URL from a supported platform"),
-        api_key: z.string().optional().describe("Your GetTranscribe API key (gtr_...). Not needed if already configured via Authorization header"),
-        folder_id: z.number().int().optional().describe("Folder ID to organize the transcription into"),
-        prompt: z.string().optional().describe("Custom prompt to guide the transcription"),
-        language: z.string().max(5).optional().describe("Target language code (e.g., 'en', 'es', 'fr')"),
-      },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: true,
-      },
-    },
-    async (args) => {
-      try {
-        const apiKey = resolveApiKey(env, args.api_key);
-        if (!apiKey) return noApiKeyError();
-
-        const result = await apiRequest<{ content: { type: string; text: string }[] }>(
-          env, apiKey, "mcp",
-          {
-            method: "POST",
-            body: {
-              method: "tools/call",
-              params: {
-                name: "create_transcription",
-                arguments: {
-                  url: args.url,
-                  folder_id: args.folder_id || null,
-                  prompt: args.prompt || null,
-                  language: args.language || null,
-                },
-              },
-            },
-          }
-        );
-
-        const responseText = result.content?.[0]?.text;
-        if (!responseText) {
-          return { content: [{ type: "text" as const, text: "Transcription created but no content returned." }] };
-        }
-
-        let transcription: TranscriptionResponse;
-        try {
-          transcription = JSON.parse(responseText);
-        } catch {
-          return { content: [{ type: "text" as const, text: responseText }] };
-        }
-
-        return {
-          content: [{ type: "text" as const, text: formatTranscriptionMarkdown(transcription) }],
-          structuredContent: formatTranscription(transcription),
-        };
-      } catch (error) {
-        return {
-          isError: true as const,
-          content: [{ type: "text" as const, text: handleApiError(error) }],
-        };
-      }
-    }
-  );
-
   server.registerTool(
     "gettranscribe_get_transcription",
     {

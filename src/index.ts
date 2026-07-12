@@ -1,8 +1,10 @@
 import { OAuthProvider } from "@cloudflare/workers-oauth-provider";
-import { createMcpHandler, getMcpAuthContext } from "agents/mcp";
+import { createMcpHandler } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerTranscriptionTools } from "./tools/transcriptions.js";
+import { registerJobTools } from "./tools/jobs.js";
 import { registerFolderTools } from "./tools/folders.js";
+import { registerDownloadTools } from "./tools/downloads.js";
 
 export interface Env {
   GETTRANSCRIBE_API_URL: string;
@@ -48,7 +50,9 @@ function createServer(env: Env) {
   });
 
   registerTranscriptionTools(server, env);
+  registerJobTools(server, env);
   registerFolderTools(server, env);
+  registerDownloadTools(server, env);
 
   return server;
 }
@@ -142,6 +146,7 @@ function renderConsentPage(clientName: string, csrfToken: string, oauthReqInfo: 
       transition: transform 0.1s;
     }
     .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.6; cursor: default; }
     .btn-primary {
       background: linear-gradient(135deg, #6942e2, #28e7c5);
       color: white;
@@ -178,14 +183,15 @@ function renderConsentPage(clientName: string, csrfToken: string, oauthReqInfo: 
       <input type="hidden" name="oauth_req" value="${sanitizeText(oauthReqInfo)}" />
       <label for="api_key">API Key</label>
       <input type="text" id="api_key" name="api_key" placeholder="gtr_..." required autocomplete="off" />
-      <div class="hint">Find your API key at <a href="https://gettranscribe.ai/home" target="_blank" style="color:#6942e2">gettranscribe.ai/home</a></div>
+      <div class="hint">Learn how to get your API key in the <a href="https://gettranscribe.ai/api-documentation/authentication" target="_blank" style="color:#6942e2">authentication guide</a></div>
       <div class="error" id="errorMsg"></div>
-      <button type="submit" class="btn btn-primary">Authorize</button>
+      <button type="submit" class="btn btn-primary" id="authBtn">Authorize</button>
     </form>
     <div class="link">
       <a href="https://gettranscribe.ai" target="_blank">Don't have an account? Sign up</a>
     </div>
   </div>
+  <script>document.getElementById('authForm').addEventListener('submit',function(){var b=document.getElementById('authBtn');b.disabled=true;b.textContent='Authorizing...';});</script>
 </body>
 </html>`;
 }
@@ -214,7 +220,7 @@ const authHandler = {
           headers: {
             "Content-Type": "text/html; charset=utf-8",
             "Set-Cookie": `__Host-CSRF_TOKEN=${csrfToken}; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=600`,
-            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; img-src 'self' https:; connect-src 'self'",
+            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-7r3LAjmn8Igd8xF8PVYuQqIlqPxFyw25NeYLZQ856pA='; form-action 'self' https:; frame-ancestors 'none'; base-uri 'self'; img-src 'self' https:; connect-src 'self'",
             "X-Frame-Options": "DENY",
             "X-Content-Type-Options": "nosniff",
           },
@@ -244,9 +250,11 @@ const authHandler = {
 
         const storedReq = await env.OAUTH_KV.get(`auth_req:${stateId}`);
         if (!storedReq) {
-          return new Response("Authorization request expired. Please start over.", { status: 400 });
+          return new Response(
+            "This authorization request was already completed or has expired. Go back to Claude and start the connection again.",
+            { status: 400 }
+          );
         }
-        await env.OAUTH_KV.delete(`auth_req:${stateId}`);
 
         const apiUrl = env.GETTRANSCRIBE_API_URL || "https://api.gettranscribe.ai";
         let userId = "unknown";
@@ -280,6 +288,8 @@ const authHandler = {
           return new Response("Could not verify API key. Please try again.", { status: 500 });
         }
 
+        await env.OAUTH_KV.delete(`auth_req:${stateId}`);
+
         let oauthReqInfo: AuthRequest;
         try {
           oauthReqInfo = JSON.parse(storedReq);
@@ -308,8 +318,11 @@ const authHandler = {
 
 const mcpHandler = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const auth = getMcpAuthContext();
-    const apiKey = (auth?.props?.apiKey as string) || undefined;
+    // OAuthProvider decrypts the grant props and attaches them to ctx.props
+    // before invoking the API handler. getMcpAuthContext() is not usable here
+    // because its AsyncLocalStorage scope only exists inside createMcpHandler.
+    const props = (ctx as ExecutionContext & { props?: Record<string, unknown> }).props;
+    const apiKey = (props?.apiKey as string) || undefined;
 
     const enrichedEnv: Env = apiKey
       ? { ...env, GETTRANSCRIBE_API_KEY: apiKey }

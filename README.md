@@ -8,12 +8,14 @@ Transcribe videos from Instagram, TikTok, YouTube, and Meta (Facebook) directly 
 
 | Tool | Description | Read-only |
 |------|------------|-----------|
-| `gettranscribe_create_transcription` | Create a transcription from a video URL | No |
+| `gettranscribe_create_transcription_job` | Start an async transcription job (returns `job_id` immediately) | No |
+| `gettranscribe_get_transcription_job` | Poll job status until completed/failed | Yes |
 | `gettranscribe_get_transcription` | Get a specific transcription by ID | Yes |
 | `gettranscribe_list_transcriptions` | List transcriptions with filtering and pagination | Yes |
 | `gettranscribe_create_folder` | Create a folder to organize transcriptions | No |
 | `gettranscribe_get_folder` | Get folder details with contents | Yes |
 | `gettranscribe_list_folders` | List folders with filtering and pagination | Yes |
+| `gettranscribe_download_video` | Resolve a fresh direct download URL for a video (temporary CDN link, debits $0.01 from wallet) | No |
 
 ## Authentication
 
@@ -73,19 +75,35 @@ Your server will be live at `https://gettranscribe-mcp-server.<your-account>.wor
 
 ### Claude Desktop
 
-Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+> **Important:** Claude Desktop does NOT support remote MCP servers via `claude_desktop_config.json`. That file only works for local stdio servers, and adding a `url` entry can cause Claude Desktop to silently wipe your `mcpServers` config. Use one of the two methods below.
+
+**Option A — Custom connector (recommended):**
+
+1. In Claude Desktop, go to **Settings → Connectors**
+2. Click **Add custom connector**
+3. Paste the URL: `https://gettranscribe-mcp-server.daniel-c6b.workers.dev/mcp`
+4. Complete the OAuth flow (enter your `gtr_...` API key on the consent page)
+
+Connectors are brokered through your Claude account, so a connector added on claude.ai is also available in Claude Desktop and the mobile apps.
+
+**Option B — `mcp-remote` stdio bridge (advanced):**
 
 ```json
 {
   "mcpServers": {
     "gettranscribe": {
-      "url": "https://gettranscribe-mcp-server.daniel-c6b.workers.dev/mcp"
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://gettranscribe-mcp-server.daniel-c6b.workers.dev/mcp"]
     }
   }
 }
 ```
 
-Claude Desktop will handle the OAuth flow automatically on first use.
+### Troubleshooting the OAuth flow
+
+- Start the connection from Claude's **Settings → Connectors** and complete the consent page in the same browser session. Copying the authorize URL to another browser or device breaks the flow (the callback can't reach the Claude session that initiated it).
+- Pending authorization requests expire after 10 minutes and are one-time use. If you see "already completed or has expired", go back to Claude and reconnect from Settings → Connectors.
+- Replay the entire OAuth flow against production with `GETTRANSCRIBE_API_KEY=gtr_... node examples/debug-oauth-flow.mjs` to verify the server end-to-end. Add `TEST_JOBS=1` to also run a full transcription job flow (costs credits) or `TEST_DOWNLOAD=1` to test the video download tool (costs $0.01).
 
 ## Architecture
 
@@ -115,8 +133,10 @@ src/
 ├── services/
 │   └── api-client.ts     # Backend API client (fetch-based)
 └── tools/
-    ├── transcriptions.ts # Transcription tools (create/get/list)
-    └── folders.ts        # Folder tools (create/get/list)
+    ├── transcriptions.ts # Transcription tools (get/list)
+    ├── jobs.ts           # Async transcription job tools (create/poll)
+    ├── folders.ts        # Folder tools (create/get/list)
+    └── downloads.ts      # Video download tool (fresh CDN URL resolution)
 ```
 
 ## License
