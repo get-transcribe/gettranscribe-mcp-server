@@ -16,6 +16,10 @@ Transcribe videos from Instagram, TikTok, YouTube, and Meta (Facebook) directly 
 | `gettranscribe_get_folder` | Get folder details with contents | Yes |
 | `gettranscribe_list_folders` | List folders with filtering and pagination | Yes |
 | `gettranscribe_download_video` | Resolve a fresh direct download URL for a video (temporary CDN link, debits $0.01 from wallet) | No |
+| `gettranscribe_describe_schema` | Admin only (user 1\|2): list tables/columns | Yes |
+| `gettranscribe_query_database` | Admin only (user 1\|2): read-only SELECT | Yes |
+
+**Production MCP URL:** `https://mcp.gettranscribe.ai/mcp`
 
 ## Authentication
 
@@ -62,14 +66,14 @@ The server will start at `http://localhost:8787/mcp`.
 npm run deploy
 ```
 
-Your server will be live at `https://gettranscribe-mcp-server.<your-account>.workers.dev/mcp`.
+Your server will be live at `https://mcp.gettranscribe.ai/mcp`.
 
 ## Connect to Claude
 
 ### Claude.ai (Web) — Recommended
 
 1. Go to **Settings → Connectors**
-2. Add a new connector with URL: `https://gettranscribe-mcp-server.daniel-c6b.workers.dev/mcp`
+2. Add a new connector with URL: `https://mcp.gettranscribe.ai/mcp`
 3. Claude will redirect you to the consent page to enter your API key
 4. After authorization, GetTranscribe tools are available in all conversations
 
@@ -81,7 +85,7 @@ Your server will be live at `https://gettranscribe-mcp-server.<your-account>.wor
 
 1. In Claude Desktop, go to **Settings → Connectors**
 2. Click **Add custom connector**
-3. Paste the URL: `https://gettranscribe-mcp-server.daniel-c6b.workers.dev/mcp`
+3. Paste the URL: `https://mcp.gettranscribe.ai/mcp`
 4. Complete the OAuth flow (enter your `gtr_...` API key on the consent page)
 
 Connectors are brokered through your Claude account, so a connector added on claude.ai is also available in Claude Desktop and the mobile apps.
@@ -93,7 +97,7 @@ Connectors are brokered through your Claude account, so a connector added on cla
   "mcpServers": {
     "gettranscribe": {
       "command": "npx",
-      "args": ["-y", "mcp-remote", "https://gettranscribe-mcp-server.daniel-c6b.workers.dev/mcp"]
+      "args": ["-y", "mcp-remote", "https://mcp.gettranscribe.ai/mcp"]
     }
   }
 }

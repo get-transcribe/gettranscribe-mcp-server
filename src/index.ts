@@ -9,6 +9,13 @@ import {
   isMcpAdminUserId,
   registerAdminSqlTools,
 } from "./tools/admin-sql.js";
+import {
+  BRAND,
+  buildServerIcons,
+  enrichOAuthMetadata,
+  getPublicOrigin,
+  handleBrandingRequest,
+} from "./branding/assets.js";
 
 export interface Env {
   GETTRANSCRIBE_API_URL: string;
@@ -49,10 +56,15 @@ interface CompleteAuthParams {
   props: Record<string, unknown>;
 }
 
-function createServer(env: Env) {
+function createServer(env: Env, publicOrigin: string) {
+  // SEP-973 / MCP 2025-11-25 Implementation metadata (icons, title, websiteUrl)
   const server = new McpServer({
-    name: "gettranscribe-mcp-server",
-    version: "2.0.0",
+    name: BRAND.name,
+    title: BRAND.title,
+    version: BRAND.version,
+    description: BRAND.description,
+    websiteUrl: BRAND.websiteUrl,
+    icons: buildServerIcons(publicOrigin),
   });
 
   registerTranscriptionTools(server, env);
@@ -358,12 +370,13 @@ const mcpHandler = {
       ...(userId ? { MCP_USER_ID: userId } : {}),
     };
 
-    const server = createServer(enrichedEnv);
+    const publicOrigin = getPublicOrigin(request);
+    const server = createServer(enrichedEnv, publicOrigin);
     return createMcpHandler(server)(request, enrichedEnv, ctx);
   },
 };
 
-export default new OAuthProvider({
+const oauthProvider = new OAuthProvider({
   apiRoute: "/mcp",
   apiHandler: mcpHandler,
   defaultHandler: authHandler,
@@ -374,3 +387,35 @@ export default new OAuthProvider({
   accessTokenTTL: 86400 * 30,
   refreshTokenTTL: 86400 * 90,
 });
+
+/**
+ * When CloudFront (or another proxy) forwards to workers.dev, rewrite the request
+ * URL to the public branded origin so OAuth issuer/audience and MCP icons match
+ * mcp.gettranscribe.ai instead of *.workers.dev.
+ */
+function withPublicOrigin(request: Request): Request {
+  const publicOrigin = getPublicOrigin(request);
+  const url = new URL(request.url);
+  if (publicOrigin === url.origin) return request;
+
+  const publicUrl = new URL(url.pathname + url.search, publicOrigin);
+  return new Request(publicUrl.toString(), request);
+}
+
+/**
+ * Wrap OAuthProvider so we can:
+ * 1) Serve public branding assets (/icon.png, favicon, landing) with no auth
+ * 2) Enrich RFC 8414 AS metadata with logo_uri (Claude/ChatGPT discovery paths)
+ * 3) Honor X-Forwarded-Host for branded custom domains
+ */
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const publicRequest = withPublicOrigin(request);
+
+    const branding = handleBrandingRequest(publicRequest);
+    if (branding) return branding;
+
+    const response = await oauthProvider.fetch(publicRequest, env, ctx);
+    return enrichOAuthMetadata(response, publicRequest);
+  },
+};

@@ -287,7 +287,14 @@ export CLOUDFLARE_API_TOKEN=your_token
 npm run deploy
 ```
 
-**Production URL:** `https://gettranscribe-mcp-server.daniel-c6b.workers.dev/mcp`
+**Production URL (branded):** `https://mcp.gettranscribe.ai/mcp`  
+**Legacy workers.dev URL:** `https://gettranscribe-mcp-server.daniel-c6b.workers.dev/mcp` (still works; Claude/ChatGPT show a generic icon because `workers.dev` has no GetTranscribe favicon)
+
+**Branding (SEP-973 + Claude/ChatGPT connector icon):**
+- `initialize` → `serverInfo` includes `title`, `description`, `websiteUrl`, and `icons[]` (same-origin PNG + data URI)
+- Public assets: `/icon.png`, `/favicon.ico`, `/apple-touch-icon.png`, `/manifest.json`, `/`
+- OAuth AS metadata includes `logo_uri`
+- Claude.ai currently picks the favicon of the connector URL’s **registrable domain (eTLD+1)** via Google’s favicon service — that is why production uses `mcp.gettranscribe.ai` under `gettranscribe.ai`, not `*.workers.dev`
 
 Token requirements: the Cloudflare API token needs `Workers Scripts:Edit` permission.
 
