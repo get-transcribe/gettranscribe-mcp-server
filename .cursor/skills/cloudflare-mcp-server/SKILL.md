@@ -43,7 +43,8 @@ gettranscribe-mcp-server/
 │   │   ├── transcriptions.ts # Transcription tools (get, list)
 │   │   ├── jobs.ts           # Async transcription job tools (create, poll status) — only create path for MCP; create returns platform wait guidance from historical duration percentiles
 │   │   ├── folders.ts        # Folder tools (create, get, list)
-│   │   └── downloads.ts      # Video download tool (fresh CDN URL via download-video REST service)
+│   │   ├── downloads.ts      # Video download tool (fresh CDN URL via download-video REST service)
+│   │   └── admin-sql.ts      # Admin-only describe_schema + query_database (user id 1|2 only)
 │   └── services/
 │       └── api-client.ts     # Centralized fetch client for backend communication
 ├── wrangler.toml             # Cloudflare Worker config
@@ -230,8 +231,9 @@ The server uses `@cloudflare/workers-oauth-provider` wrapping the entire Worker.
 1. MCP client connects to `/mcp` → gets **401** with OAuth metadata
 2. Client registers via `/register` (dynamic client registration)
 3. Client redirects user to `/authorize` → consent page
-4. User enters their `gtr_...` API key → verified against backend `GET /users/me`
-5. `completeAuthorization()` stores the API key in encrypted `props`
+4. User enters their `gtr_...` API key → verified against backend `GET /users/me` (returns numeric `id`)
+5. `completeAuthorization()` stores `apiKey` + numeric `userId` in encrypted `props`
+5b. `createServer` registers `gettranscribe_describe_schema` / `gettranscribe_query_database` **only** when `MCP_USER_ID` is `1` or `2` (mirrored + enforced on backend `POST /mcp`)
 6. Client exchanges auth code at `/token` → receives access + refresh tokens
 7. On every MCP request, `OAuthProvider` validates the token and passes `props` to the handler
 8. `getMcpAuthContext()` retrieves `props.apiKey` inside the MCP handler
@@ -297,6 +299,8 @@ If `workers.dev` shows "Inactive" in the dashboard, enable it via: Worker > Sett
 - `wrangler deployments list` — see deployment history
 - Check `Accept` headers: clients must send `Accept: application/json, text/event-stream`
 - `GETTRANSCRIBE_API_KEY=gtr_... node examples/debug-oauth-flow.mjs` — replays the full OAuth flow + tools/list + a real tool call against production. Optional flags: `TEST_JOBS=1` (full async transcription job flow, costs credits) and `TEST_DOWNLOAD=1` (download_video tool, costs $0.01). Both accept `TEST_JOBS_URL` / `TEST_DOWNLOAD_URL` overrides.
+- Admin SQL local: start backend `:3031`, then `npx wrangler dev --var GETTRANSCRIBE_API_URL:http://localhost:3031 --port 8787`, then `ADMIN_API_KEY=gtr_... NON_ADMIN_API_KEY=gtr_... MCP_BASE_URL=http://localhost:8787 node examples/test-admin-sql-local.mjs`. Backend-only: `ADMIN_API_KEY=... NON_ADMIN_API_KEY=... node scripts/test-mcp-admin-sql.mjs` in `gettranscribe-backend`.
+- Admin tools (`gettranscribe_describe_schema`, `gettranscribe_query_database`) register only when OAuth `props.userId` is `1` or `2`. Backend `POST /mcp` also hides/rejects them for everyone else.
 
 ## Important Constraints
 

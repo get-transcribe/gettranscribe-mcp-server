@@ -5,10 +5,16 @@ import { registerTranscriptionTools } from "./tools/transcriptions.js";
 import { registerJobTools } from "./tools/jobs.js";
 import { registerFolderTools } from "./tools/folders.js";
 import { registerDownloadTools } from "./tools/downloads.js";
+import {
+  isMcpAdminUserId,
+  registerAdminSqlTools,
+} from "./tools/admin-sql.js";
 
 export interface Env {
   GETTRANSCRIBE_API_URL: string;
   GETTRANSCRIBE_API_KEY?: string;
+  /** Numeric GetTranscribe user id from OAuth props (stringified). */
+  MCP_USER_ID?: string;
   MCP_PATH?: string;
   OAUTH_KV: KVNamespace;
   OAUTH_PROVIDER: OAuthHelpers;
@@ -53,6 +59,11 @@ function createServer(env: Env) {
   registerJobTools(server, env);
   registerFolderTools(server, env);
   registerDownloadTools(server, env);
+
+  // Admin SQL tools only appear in tools/list for user id 1 or 2
+  if (isMcpAdminUserId(env.MCP_USER_ID)) {
+    registerAdminSqlTools(server, env);
+  }
 
   return server;
 }
@@ -259,17 +270,13 @@ const authHandler = {
         const apiUrl = env.GETTRANSCRIBE_API_URL || "https://api.gettranscribe.ai";
         let userId = "unknown";
         try {
-          const verifyRes = await fetch(`${apiUrl}/mcp`, {
-            method: "POST",
+          // Resolve the real numeric user id (needed for admin-only tool gating)
+          const verifyRes = await fetch(`${apiUrl}/users/me`, {
+            method: "GET",
             headers: {
-              "Content-Type": "application/json",
-              "Accept": "application/json",
+              Accept: "application/json",
               "x-api-key": apiKey,
             },
-            body: JSON.stringify({
-              method: "tools/list",
-              params: {},
-            }),
           });
           if (!verifyRes.ok) {
             return new Response("Invalid API key. Please check and try again.", {
@@ -277,13 +284,14 @@ const authHandler = {
               headers: { "Content-Type": "text/plain" },
             });
           }
-          const hashBuffer = await crypto.subtle.digest(
-            "SHA-256",
-            new TextEncoder().encode(apiKey)
-          );
-          userId = Array.from(new Uint8Array(hashBuffer).slice(0, 8))
-            .map((b) => b.toString(16).padStart(2, "0"))
-            .join("");
+          const me = (await verifyRes.json()) as { id?: number | string };
+          if (me?.id == null || Number.isNaN(Number(me.id))) {
+            return new Response("Could not resolve user for this API key.", {
+              status: 400,
+              headers: { "Content-Type": "text/plain" },
+            });
+          }
+          userId = String(me.id);
         } catch {
           return new Response("Could not verify API key. Please try again.", { status: 500 });
         }
@@ -323,10 +331,32 @@ const mcpHandler = {
     // because its AsyncLocalStorage scope only exists inside createMcpHandler.
     const props = (ctx as ExecutionContext & { props?: Record<string, unknown> }).props;
     const apiKey = (props?.apiKey as string) || undefined;
+    let userId =
+      props?.userId != null && String(props.userId).trim() !== ""
+        ? String(props.userId)
+        : undefined;
 
-    const enrichedEnv: Env = apiKey
-      ? { ...env, GETTRANSCRIBE_API_KEY: apiKey }
-      : env;
+    // Older OAuth grants stored a hash as userId — refresh from /users/me when needed
+    if (apiKey && (!userId || Number.isNaN(Number(userId)))) {
+      try {
+        const apiUrl = env.GETTRANSCRIBE_API_URL || "https://api.gettranscribe.ai";
+        const meRes = await fetch(`${apiUrl}/users/me`, {
+          headers: { Accept: "application/json", "x-api-key": apiKey },
+        });
+        if (meRes.ok) {
+          const me = (await meRes.json()) as { id?: number | string };
+          if (me?.id != null) userId = String(me.id);
+        }
+      } catch {
+        // Keep non-admin tool set if lookup fails
+      }
+    }
+
+    const enrichedEnv: Env = {
+      ...env,
+      ...(apiKey ? { GETTRANSCRIBE_API_KEY: apiKey } : {}),
+      ...(userId ? { MCP_USER_ID: userId } : {}),
+    };
 
     const server = createServer(enrichedEnv);
     return createMcpHandler(server)(request, enrichedEnv, ctx);
