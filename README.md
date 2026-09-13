@@ -18,6 +18,7 @@ Transcribe videos from Instagram, TikTok, YouTube, and Meta (Facebook) directly 
 | `gettranscribe_download_video` | Resolve a fresh direct download URL for a video (temporary CDN link, debits $0.01 from wallet) | No |
 | `gettranscribe_describe_schema` | Admin only (user 1\|2): list tables/columns | Yes |
 | `gettranscribe_query_database` | Admin only (user 1\|2): read-only SELECT | Yes |
+| `gettranscribe_appstore_connect_request` | Admin only (user 1\|2): any HTTP request to App Store Connect API | No |
 
 **Production MCP URL:** `https://mcp.gettranscribe.ai/mcp`
 

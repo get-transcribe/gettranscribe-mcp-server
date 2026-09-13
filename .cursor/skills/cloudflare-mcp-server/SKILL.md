@@ -44,9 +44,11 @@ gettranscribe-mcp-server/
 │   │   ├── jobs.ts           # Async transcription job tools (create, poll status) — only create path for MCP; create returns platform wait guidance from historical duration percentiles
 │   │   ├── folders.ts        # Folder tools (create, get, list)
 │   │   ├── downloads.ts      # Video download tool (fresh CDN URL via download-video REST service)
-│   │   └── admin-sql.ts      # Admin-only describe_schema + query_database (user id 1|2 only)
+│   │   ├── admin-sql.ts      # Admin-only describe_schema + query_database (user id 1|2 only)
+│   │   └── admin-appstore-connect.ts # Admin-only App Store Connect HTTP proxy (user id 1|2 only)
 │   └── services/
-│       └── api-client.ts     # Centralized fetch client for backend communication
+│       ├── api-client.ts     # Centralized fetch client for backend communication
+│       └── asc-client.ts     # App Store Connect JWT (ES256) + fetch to api.appstoreconnect.apple.com
 ├── wrangler.toml             # Cloudflare Worker config
 ├── tsconfig.json
 └── package.json
@@ -218,6 +220,22 @@ return {
 | `GETTRANSCRIBE_API_URL` | `wrangler.toml` [vars] | Backend API base URL |
 | `MCP_PATH` | `wrangler.toml` [vars] | Route path (default: `/mcp`) |
 | `OAUTH_KV` | `wrangler.toml` [[kv_namespaces]] | KV namespace for OAuth token storage |
+| `COOKIE_SECRET` | `wrangler secret` / `.dev.vars` | HMAC for OAuth cookies |
+| `APPLE_APPSTORE_CONNECT_API_KEY` | `wrangler secret` / `.dev.vars` | ASC Key ID (admin ASC tool) |
+| `APPLE_APPSTORE_CONNECT_ISSUER_ID` | `wrangler secret` / `.dev.vars` | ASC Issuer UUID (admin ASC tool) |
+| `APPLE_APPSTORE_CONNECT_PRIVATE_KEY` | `wrangler secret` / `.dev.vars` | Full PEM of `AuthKey_*.p8` (admin ASC tool) |
+| `APPLE_VENDOR_NUMBER` | `wrangler.toml` [vars] / `.dev.vars` | Vendor number for `filter[vendorNumber]` on sales/finance reports |
+
+### App Store Connect secrets (production)
+
+```bash
+# from gettranscribe-mcp-server
+echo -n 'KEY_ID' | wrangler secret put APPLE_APPSTORE_CONNECT_API_KEY
+echo -n 'ISSUER_UUID' | wrangler secret put APPLE_APPSTORE_CONNECT_ISSUER_ID
+cat /path/to/AuthKey_XXXX.p8 | wrangler secret put APPLE_APPSTORE_CONNECT_PRIVATE_KEY
+```
+
+Never commit `.p8` files. Backend `.gitignore` includes `AuthKey_*.p8` / `*.p8`. Local MCP uses `.dev.vars` (gitignored).
 
 ## Authentication Model (OAuth 2.1)
 
@@ -233,7 +251,9 @@ The server uses `@cloudflare/workers-oauth-provider` wrapping the entire Worker.
 3. Client redirects user to `/authorize` → consent page
 4. User enters their `gtr_...` API key → verified against backend `GET /users/me` (returns numeric `id`)
 5. `completeAuthorization()` stores `apiKey` + numeric `userId` in encrypted `props`
-5b. `createServer` registers `gettranscribe_describe_schema` / `gettranscribe_query_database` **only** when `MCP_USER_ID` is `1` or `2` (mirrored + enforced on backend `POST /mcp`)
+5b. `createServer` registers admin tools **only** when `MCP_USER_ID` is `1` or `2`:
+   - SQL: `gettranscribe_describe_schema` / `gettranscribe_query_database` (proxied to backend `POST /mcp`; backend also enforces)
+   - App Store Connect: `gettranscribe_appstore_connect_request` (Worker → Apple directly; re-checks `/users/me` is admin; JWT ES256 via `jose`)
 6. Client exchanges auth code at `/token` → receives access + refresh tokens
 7. On every MCP request, `OAuthProvider` validates the token and passes `props` to the handler
 8. `getMcpAuthContext()` retrieves `props.apiKey` inside the MCP handler
@@ -307,7 +327,25 @@ If `workers.dev` shows "Inactive" in the dashboard, enable it via: Worker > Sett
 - Check `Accept` headers: clients must send `Accept: application/json, text/event-stream`
 - `GETTRANSCRIBE_API_KEY=gtr_... node examples/debug-oauth-flow.mjs` — replays the full OAuth flow + tools/list + a real tool call against production. Optional flags: `TEST_JOBS=1` (full async transcription job flow, costs credits) and `TEST_DOWNLOAD=1` (download_video tool, costs $0.01). Both accept `TEST_JOBS_URL` / `TEST_DOWNLOAD_URL` overrides.
 - Admin SQL local: start backend `:3031`, then `npx wrangler dev --var GETTRANSCRIBE_API_URL:http://localhost:3031 --port 8787`, then `ADMIN_API_KEY=gtr_... NON_ADMIN_API_KEY=gtr_... MCP_BASE_URL=http://localhost:8787 node examples/test-admin-sql-local.mjs`. Backend-only: `ADMIN_API_KEY=... NON_ADMIN_API_KEY=... node scripts/test-mcp-admin-sql.mjs` in `gettranscribe-backend`.
-- Admin tools (`gettranscribe_describe_schema`, `gettranscribe_query_database`) register only when OAuth `props.userId` is `1` or `2`. Backend `POST /mcp` also hides/rejects them for everyone else.
+- Admin tools (`gettranscribe_describe_schema`, `gettranscribe_query_database`, `gettranscribe_appstore_connect_request`) register only when OAuth `props.userId` is `1` or `2`. SQL tools are also hidden/rejected on backend `POST /mcp`. ASC tool runs on the Worker (never returns JWT/PEM) and only calls `https://api.appstoreconnect.apple.com` with relative `/v1/…` paths.
+
+### Admin App Store Connect tool
+
+`gettranscribe_appstore_connect_request` — generic HTTP proxy:
+
+| Arg | Required | Notes |
+|-----|----------|--------|
+| `method` | yes | `GET` \| `POST` \| `PATCH` \| `DELETE` |
+| `path` | yes | Relative, e.g. `/v1/apps` (no full URL; must start with `/vN/`) |
+| `query` | no | Flat object → querystring (`filter[vendorNumber]` for sales/finance) |
+| `body` | no | JSON for POST/PATCH |
+| `api_key` | no | OAuth fills default |
+
+`APPLE_VENDOR_NUMBER` (wrangler `[vars]`, currently `93632439`) is injected into the tool description and response `vendorNumber` field so agents use it for `/v1/salesReports` and `/v1/financeReports`.
+
+Sales/finance reports return `application/a-gzip` (not JSON). `asc-client.ts` accepts both content types, detects gzip magic bytes, gunzips via `DecompressionStream`, and returns TSV text under `body.format = "tsv"`.
+
+Implementation: `src/tools/admin-appstore-connect.ts` + `src/services/asc-client.ts`.
 
 ## Important Constraints
 

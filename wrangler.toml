@@ -2,10 +2,13 @@ name = "gettranscribe-mcp-server"
 main = "src/index.ts"
 compatibility_date = "2025-04-01"
 compatibility_flags = ["nodejs_compat"]
+account_id = "c6bb8b56c97674434093a2f695de9fb4"
 
 [vars]
 GETTRANSCRIBE_API_URL = "https://api.gettranscribe.ai"
 MCP_PATH = "/mcp"
+# Apple vendor number for ASC finance/sales reports (filter[vendorNumber])
+APPLE_VENDOR_NUMBER = "93632439"
 
 [[kv_namespaces]]
 binding = "OAUTH_KV"
@@ -13,3 +16,11 @@ id = "f7fe61aa6a2c42179690b1112a8f30b6"
 
 # Secrets (set via: wrangler secret put <NAME>):
 # COOKIE_SECRET — random string for HMAC signing cookies (required for OAuth)
+# APPLE_APPSTORE_CONNECT_API_KEY — App Store Connect Key ID (admin ASC tools)
+# APPLE_APPSTORE_CONNECT_ISSUER_ID — App Store Connect Issuer ID UUID (admin ASC tools)
+# APPLE_APPSTORE_CONNECT_PRIVATE_KEY — full PEM of AuthKey_*.p8 (admin ASC tools)
+#   Example:
+#     echo -n 'KEY_ID' | wrangler secret put APPLE_APPSTORE_CONNECT_API_KEY
+#     echo -n 'ISSUER_UUID' | wrangler secret put APPLE_APPSTORE_CONNECT_ISSUER_ID
+#     cat /path/to/AuthKey_XXXX.p8 | wrangler secret put APPLE_APPSTORE_CONNECT_PRIVATE_KEY
+# APPLE_VENDOR_NUMBER is a plain [vars] value (not a secret) — used for finance/sales report filters.

@@ -9,6 +9,7 @@ import {
   isMcpAdminUserId,
   registerAdminSqlTools,
 } from "./tools/admin-sql.js";
+import { registerAdminAppStoreConnectTools } from "./tools/admin-appstore-connect.js";
 import {
   BRAND,
   buildServerIcons,
@@ -26,6 +27,14 @@ export interface Env {
   OAUTH_KV: KVNamespace;
   OAUTH_PROVIDER: OAuthHelpers;
   COOKIE_SECRET?: string;
+  /** App Store Connect API Key ID (e.g. 6849KG244P). Admin tools only. */
+  APPLE_APPSTORE_CONNECT_API_KEY?: string;
+  /** App Store Connect Issuer ID (UUID). Admin tools only. */
+  APPLE_APPSTORE_CONNECT_ISSUER_ID?: string;
+  /** PEM contents of the AuthKey_*.p8 private key. Admin tools only. */
+  APPLE_APPSTORE_CONNECT_PRIVATE_KEY?: string;
+  /** Apple vendor number for finance/sales reports (filter[vendorNumber]). */
+  APPLE_VENDOR_NUMBER?: string;
 }
 
 interface OAuthHelpers {
@@ -72,9 +81,10 @@ function createServer(env: Env, publicOrigin: string) {
   registerFolderTools(server, env);
   registerDownloadTools(server, env);
 
-  // Admin SQL tools only appear in tools/list for user id 1 or 2
+  // Admin tools only appear in tools/list for user id 1 or 2
   if (isMcpAdminUserId(env.MCP_USER_ID)) {
     registerAdminSqlTools(server, env);
+    registerAdminAppStoreConnectTools(server, env);
   }
 
   return server;
@@ -88,6 +98,34 @@ function sanitizeText(text: string): string {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
+
+function clientWantsJson(request: Request): boolean {
+  return (request.headers.get("Accept") || "").includes("application/json");
+}
+
+function authorizeError(message: string, status: number, asJson: boolean): Response {
+  if (asJson) {
+    return new Response(JSON.stringify({ error: message }), {
+      status,
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    });
+  }
+  return new Response(message, {
+    status,
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
+  });
+}
+
+const CONSENT_CSP = [
+  "default-src 'none'",
+  "style-src 'unsafe-inline'",
+  "script-src 'unsafe-inline'",
+  "connect-src 'self'",
+  "form-action 'self' https: http: cursor: vscode: vscode-insiders: claude:",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "img-src 'self' https:",
+].join("; ");
 
 function renderConsentPage(clientName: string, csrfToken: string, oauthReqInfo: string): string {
   const safeName = sanitizeText(clientName || "MCP Client");
@@ -214,7 +252,38 @@ function renderConsentPage(clientName: string, csrfToken: string, oauthReqInfo: 
       <a href="https://gettranscribe.ai" target="_blank">Don't have an account? Sign up</a>
     </div>
   </div>
-  <script>document.getElementById('authForm').addEventListener('submit',function(){var b=document.getElementById('authBtn');b.disabled=true;b.textContent='Authorizing...';});</script>
+  <script>
+    document.getElementById('authForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var btn = document.getElementById('authBtn');
+      var err = document.getElementById('errorMsg');
+      btn.disabled = true;
+      btn.textContent = 'Authorizing...';
+      err.style.display = 'none';
+      try {
+        var res = await fetch('/authorize', {
+          method: 'POST',
+          body: new FormData(this),
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' }
+        });
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok || !data.redirectTo) {
+          err.textContent = data.error || 'Authorization failed. Please try again.';
+          err.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = 'Authorize';
+          return;
+        }
+        window.location.href = data.redirectTo;
+      } catch (ex) {
+        err.textContent = 'Authorization failed. Please try again.';
+        err.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Authorize';
+      }
+    });
+  </script>
 </body>
 </html>`;
 }
@@ -243,7 +312,7 @@ const authHandler = {
           headers: {
             "Content-Type": "text/html; charset=utf-8",
             "Set-Cookie": `__Host-CSRF_TOKEN=${csrfToken}; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=600`,
-            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-7r3LAjmn8Igd8xF8PVYuQqIlqPxFyw25NeYLZQ856pA='; form-action 'self' https:; frame-ancestors 'none'; base-uri 'self'; img-src 'self' https:; connect-src 'self'",
+            "Content-Security-Policy": CONSENT_CSP,
             "X-Frame-Options": "DENY",
             "X-Content-Type-Options": "nosniff",
           },
@@ -251,6 +320,7 @@ const authHandler = {
       }
 
       if (request.method === "POST") {
+        const asJson = clientWantsJson(request);
         const formData = await request.formData();
         const csrfTokenForm = formData.get("csrf_token") as string;
         const apiKey = (formData.get("api_key") as string)?.trim();
@@ -264,25 +334,25 @@ const authHandler = {
           ?.trim();
 
         if (!csrfTokenForm || !csrfTokenCookie || csrfTokenForm !== csrfTokenCookie) {
-          return new Response("CSRF token mismatch. Please try again.", { status: 403 });
+          return authorizeError("CSRF token mismatch. Please try again.", 403, asJson);
         }
 
         if (!apiKey || !apiKey.startsWith("gtr_")) {
-          return new Response("Invalid API key. Must start with gtr_", { status: 400 });
+          return authorizeError("Invalid API key. Must start with gtr_", 400, asJson);
         }
 
         const storedReq = await env.OAUTH_KV.get(`auth_req:${stateId}`);
         if (!storedReq) {
-          return new Response(
-            "This authorization request was already completed or has expired. Go back to Claude and start the connection again.",
-            { status: 400 }
+          return authorizeError(
+            "This authorization request was already completed or has expired. Go back to the client and start the connection again.",
+            400,
+            asJson
           );
         }
 
         const apiUrl = env.GETTRANSCRIBE_API_URL || "https://api.gettranscribe.ai";
         let userId = "unknown";
         try {
-          // Resolve the real numeric user id (needed for admin-only tool gating)
           const verifyRes = await fetch(`${apiUrl}/users/me`, {
             method: "GET",
             headers: {
@@ -291,21 +361,15 @@ const authHandler = {
             },
           });
           if (!verifyRes.ok) {
-            return new Response("Invalid API key. Please check and try again.", {
-              status: 400,
-              headers: { "Content-Type": "text/plain" },
-            });
+            return authorizeError("Invalid API key. Please check and try again.", 400, asJson);
           }
           const me = (await verifyRes.json()) as { id?: number | string };
           if (me?.id == null || Number.isNaN(Number(me.id))) {
-            return new Response("Could not resolve user for this API key.", {
-              status: 400,
-              headers: { "Content-Type": "text/plain" },
-            });
+            return authorizeError("Could not resolve user for this API key.", 400, asJson);
           }
           userId = String(me.id);
         } catch {
-          return new Response("Could not verify API key. Please try again.", { status: 500 });
+          return authorizeError("Could not verify API key. Please try again.", 500, asJson);
         }
 
         await env.OAUTH_KV.delete(`auth_req:${stateId}`);
@@ -314,7 +378,7 @@ const authHandler = {
         try {
           oauthReqInfo = JSON.parse(storedReq);
         } catch {
-          return new Response("Invalid request data.", { status: 400 });
+          return authorizeError("Invalid request data.", 400, asJson);
         }
 
         const { redirectTo } = await env.OAUTH_PROVIDER.completeAuthorization({
@@ -327,6 +391,13 @@ const authHandler = {
             userId,
           },
         });
+
+        if (asJson) {
+          return new Response(JSON.stringify({ redirectTo }), {
+            status: 200,
+            headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+          });
+        }
 
         return Response.redirect(redirectTo, 302);
       }
