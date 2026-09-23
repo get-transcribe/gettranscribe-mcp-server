@@ -10,6 +10,7 @@ import {
   registerAdminSqlTools,
 } from "./tools/admin-sql.js";
 import { registerAdminAppStoreConnectTools } from "./tools/admin-appstore-connect.js";
+import { resolveMcpCaller } from "./auth/mcp-identity.js";
 import {
   BRAND,
   buildServerIcons,
@@ -41,6 +42,10 @@ interface OAuthHelpers {
   parseAuthRequest(request: Request): Promise<AuthRequest>;
   lookupClient(clientId: string): Promise<ClientInfo | null>;
   completeAuthorization(params: CompleteAuthParams): Promise<{ redirectTo: string }>;
+  unwrapToken?(token: string): Promise<{
+    userId?: string;
+    grant?: { props?: Record<string, unknown> };
+  } | null>;
 }
 
 interface AuthRequest {
@@ -407,43 +412,40 @@ const authHandler = {
   },
 };
 
+function withPrivateNoStore(response: Response): Response {
+  const headers = new Headers(response.headers);
+  headers.set("Cache-Control", "private, no-store");
+  headers.set("Vary", "Authorization");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 const mcpHandler = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    // OAuthProvider decrypts the grant props and attaches them to ctx.props
-    // before invoking the API handler. getMcpAuthContext() is not usable here
-    // because its AsyncLocalStorage scope only exists inside createMcpHandler.
-    const props = (ctx as ExecutionContext & { props?: Record<string, unknown> }).props;
-    const apiKey = (props?.apiKey as string) || undefined;
-    let userId =
-      props?.userId != null && String(props.userId).trim() !== ""
-        ? String(props.userId)
-        : undefined;
-
-    // Older OAuth grants stored a hash as userId — refresh from /users/me when needed
-    if (apiKey && (!userId || Number.isNaN(Number(userId)))) {
-      try {
-        const apiUrl = env.GETTRANSCRIBE_API_URL || "https://api.gettranscribe.ai";
-        const meRes = await fetch(`${apiUrl}/users/me`, {
-          headers: { Accept: "application/json", "x-api-key": apiKey },
-        });
-        if (meRes.ok) {
-          const me = (await meRes.json()) as { id?: number | string };
-          if (me?.id != null) userId = String(me.id);
-        }
-      } catch {
-        // Keep non-admin tool set if lookup fails
-      }
-    }
+    // OAuthProvider decrypts the grant and sets ctx.props before this handler.
+    // getMcpAuthContext() is only populated inside createMcpHandler, so admin
+    // tool registration has to happen from props (or unwrapToken) here.
+    const caller = await resolveMcpCaller(
+      request,
+      env,
+      ctx as ExecutionContext & { props?: Record<string, unknown> }
+    );
 
     const enrichedEnv: Env = {
       ...env,
-      ...(apiKey ? { GETTRANSCRIBE_API_KEY: apiKey } : {}),
-      ...(userId ? { MCP_USER_ID: userId } : {}),
+      ...(caller.apiKey ? { GETTRANSCRIBE_API_KEY: caller.apiKey } : {}),
+      ...(caller.userId ? { MCP_USER_ID: caller.userId } : {}),
     };
 
     const publicOrigin = getPublicOrigin(request);
     const server = createServer(enrichedEnv, publicOrigin);
-    return createMcpHandler(server)(request, enrichedEnv, ctx);
+    const response = await createMcpHandler(server)(request, enrichedEnv, ctx);
+    // CloudFront sits in front of mcp.gettranscribe.ai. A cached tools/list from
+    // a non-admin token would hide query_database and App Store Connect.
+    return withPrivateNoStore(response);
   },
 };
 

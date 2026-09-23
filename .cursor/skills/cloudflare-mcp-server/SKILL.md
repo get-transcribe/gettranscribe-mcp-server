@@ -251,22 +251,27 @@ The server uses `@cloudflare/workers-oauth-provider` wrapping the entire Worker.
 3. Client redirects user to `/authorize` → consent page
 4. User enters their `gtr_...` API key → verified against backend `GET /users/me` (returns numeric `id`)
 5. `completeAuthorization()` stores `apiKey` + numeric `userId` in encrypted `props`
-5b. `createServer` registers admin tools **only** when `MCP_USER_ID` is `1` or `2`:
+5b. On every `/mcp` request, `resolveMcpCaller()` reads `ctx.props` (or `OAUTH_PROVIDER.unwrapToken` if props are missing) and **always** re-resolves the account id with `GET /users/me`. Legacy grants stored a 16-char hex hash as `userId` (sometimes all digits); that hash is ignored. `createServer` registers admin tools **only** when the resolved id is `1` or `2`:
    - SQL: `gettranscribe_describe_schema` / `gettranscribe_query_database` (proxied to backend `POST /mcp`; backend also enforces)
-   - App Store Connect: `gettranscribe_appstore_connect_request` (Worker → Apple directly; re-checks `/users/me` is admin; JWT ES256 via `jose`)
+   - App Store Connect: `gettranscribe_appstore_connect_request` (title: Apple Sales and App Store Connect; Worker → Apple directly; re-checks `/users/me` is admin; JWT ES256 via `jose`)
 6. Client exchanges auth code at `/token` → receives access + refresh tokens
 7. On every MCP request, `OAuthProvider` validates the token and passes `props` to the handler
-8. `getMcpAuthContext()` retrieves `props.apiKey` inside the MCP handler
+8. `/mcp` responses set `Cache-Control: private, no-store` so CloudFront cannot reuse another user's `tools/list`
+9. Tool handlers use `env.GETTRANSCRIBE_API_KEY`, copied from the resolved caller before `createMcpHandler`. `getMcpAuthContext()` is only available inside the handler, after the server (and its tool list) already exists.
 
 **Key code in `src/index.ts`:**
 ```typescript
 const mcpHandler = {
   async fetch(request, env, ctx) {
-    const auth = getMcpAuthContext();
-    const apiKey = auth?.props?.apiKey as string;
-    const enrichedEnv = apiKey ? { ...env, GETTRANSCRIBE_API_KEY: apiKey } : env;
-    const server = createServer(enrichedEnv);
-    return createMcpHandler(server)(request, enrichedEnv, ctx);
+    const caller = await resolveMcpCaller(request, env, ctx);
+    const enrichedEnv = {
+      ...env,
+      ...(caller.apiKey ? { GETTRANSCRIBE_API_KEY: caller.apiKey } : {}),
+      ...(caller.userId ? { MCP_USER_ID: caller.userId } : {}),
+    };
+    const server = createServer(enrichedEnv, getPublicOrigin(request));
+    const response = await createMcpHandler(server)(request, enrichedEnv, ctx);
+    return withPrivateNoStore(response);
   },
 };
 
@@ -327,7 +332,7 @@ If `workers.dev` shows "Inactive" in the dashboard, enable it via: Worker > Sett
 - Check `Accept` headers: clients must send `Accept: application/json, text/event-stream`
 - `GETTRANSCRIBE_API_KEY=gtr_... node examples/debug-oauth-flow.mjs` — replays the full OAuth flow + tools/list + a real tool call against production. Optional flags: `TEST_JOBS=1` (full async transcription job flow, costs credits) and `TEST_DOWNLOAD=1` (download_video tool, costs $0.01). Both accept `TEST_JOBS_URL` / `TEST_DOWNLOAD_URL` overrides.
 - Admin SQL local: start backend `:3031`, then `npx wrangler dev --var GETTRANSCRIBE_API_URL:http://localhost:3031 --port 8787`, then `ADMIN_API_KEY=gtr_... NON_ADMIN_API_KEY=gtr_... MCP_BASE_URL=http://localhost:8787 node examples/test-admin-sql-local.mjs`. Backend-only: `ADMIN_API_KEY=... NON_ADMIN_API_KEY=... node scripts/test-mcp-admin-sql.mjs` in `gettranscribe-backend`.
-- Admin tools (`gettranscribe_describe_schema`, `gettranscribe_query_database`, `gettranscribe_appstore_connect_request`) register only when OAuth `props.userId` is `1` or `2`. SQL tools are also hidden/rejected on backend `POST /mcp`. ASC tool runs on the Worker (never returns JWT/PEM) and only calls `https://api.appstoreconnect.apple.com` with relative `/v1/…` paths.
+- Admin tools (`gettranscribe_describe_schema`, `gettranscribe_query_database`, `gettranscribe_appstore_connect_request`) register only when the **live** `GET /users/me` id is `1` or `2` (`src/auth/mcp-identity.ts`). A stored OAuth hash is not an account id. SQL tools are also hidden/rejected on backend `POST /mcp`. ASC tool runs on the Worker (never returns JWT/PEM) and only calls `https://api.appstoreconnect.apple.com` with relative `/v1/…` paths. If an admin still does not see them after deploy, disconnect and reconnect the MCP client so it refetches `tools/list`.
 
 ### Admin App Store Connect tool
 
