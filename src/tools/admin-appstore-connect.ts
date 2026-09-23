@@ -74,7 +74,7 @@ export function registerAdminAppStoreConnectTools(server: McpServer, env: Env) {
   server.registerTool(
     "gettranscribe_appstore_connect_request",
     {
-      title: "App Store Connect API Request",
+      title: "Apple Sales and App Store Connect",
       description:
         "Admin only (user id 1 or 2). Send any HTTP request to Apple's App Store Connect API " +
         "(https://api.appstoreconnect.apple.com). " +
