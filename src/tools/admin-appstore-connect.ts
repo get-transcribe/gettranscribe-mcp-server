@@ -63,7 +63,7 @@ async function assertMcpAdmin(env: Env, apiKey: string): Promise<void> {
 }
 
 /**
- * Admin-only App Store Connect proxy. Always registered so clients can discover it.
+ * Admin-only App Store Connect proxy. Register only when the OAuth user id is 1 or 2.
  * Each call re-checks /users/me and rejects anyone who is not user id 1 or 2.
  */
 export function registerAdminAppStoreConnectTools(server: McpServer, env: Env) {

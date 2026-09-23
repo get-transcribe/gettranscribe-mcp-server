@@ -50,8 +50,8 @@ async function callBackendAdminTool(
 }
 
 /**
- * Admin-only SQL tools. Always registered so clients can discover them.
- * Execution is rejected unless the API key belongs to user id 1 or 2.
+ * Admin-only SQL tools. Register only when the OAuth user id is 1 or 2.
+ * Execution is also rejected unless that API key belongs to user id 1 or 2.
  */
 export function registerAdminSqlTools(server: McpServer, env: Env) {
   server.registerTool(
@@ -190,7 +190,7 @@ export function registerAdminSqlTools(server: McpServer, env: Env) {
   );
 }
 
-/** Numeric GetTranscribe user ids allowed to execute admin tools. */
+/** Numeric GetTranscribe user ids allowed to see and execute admin tools. */
 export const MCP_ADMIN_USER_IDS = [1, 2] as const;
 
 export function isMcpAdminUserId(userId: unknown): boolean {

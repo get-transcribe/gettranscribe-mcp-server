@@ -5,7 +5,7 @@ import { registerTranscriptionTools } from "./tools/transcriptions.js";
 import { registerJobTools } from "./tools/jobs.js";
 import { registerFolderTools } from "./tools/folders.js";
 import { registerDownloadTools } from "./tools/downloads.js";
-import { registerAdminSqlTools } from "./tools/admin-sql.js";
+import { isMcpAdminUserId, registerAdminSqlTools } from "./tools/admin-sql.js";
 import { registerAdminAppStoreConnectTools } from "./tools/admin-appstore-connect.js";
 import {
   BRAND,
@@ -78,12 +78,13 @@ function createServer(env: Env, publicOrigin: string) {
   registerFolderTools(server, env);
   registerDownloadTools(server, env);
 
-  // Always list admin tools. Claude and ChatGPT only know tools returned by
-  // tools/list, so hiding them unless the OAuth session user id is 1 or 2 made
-  // the tools disappear even when the caller passed an admin API key.
-  // Execution still rejects anyone who is not user id 1 or 2.
-  registerAdminSqlTools(server, env);
-  registerAdminAppStoreConnectTools(server, env);
+  // List admin tools only for the OAuth connection's user. Claude and ChatGPT
+  // snapshot tools/list for that connection, so other users must not see them.
+  // Passing api_key later in chat does not change the list.
+  if (isMcpAdminUserId(env.MCP_USER_ID)) {
+    registerAdminSqlTools(server, env);
+    registerAdminAppStoreConnectTools(server, env);
+  }
 
   return server;
 }
@@ -405,6 +406,30 @@ const authHandler = {
   },
 };
 
+async function resolveOauthUserId(
+  env: Env,
+  apiKey: string | undefined,
+  propsUserId: string | undefined
+): Promise<string | undefined> {
+  if (apiKey) {
+    try {
+      const apiUrl = env.GETTRANSCRIBE_API_URL || "https://api.gettranscribe.ai";
+      const meRes = await fetch(`${apiUrl}/users/me`, {
+        headers: { Accept: "application/json", "x-api-key": apiKey },
+      });
+      if (meRes.ok) {
+        const me = (await meRes.json()) as { id?: number | string };
+        if (me?.id != null && !Number.isNaN(Number(me.id))) return String(me.id);
+      }
+    } catch {
+      // Fall back to the id stored on the OAuth grant.
+    }
+  }
+
+  if (propsUserId && !Number.isNaN(Number(propsUserId))) return propsUserId;
+  return undefined;
+}
+
 const mcpHandler = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     // OAuthProvider decrypts the grant props and attaches them to ctx.props
@@ -412,26 +437,15 @@ const mcpHandler = {
     // because its AsyncLocalStorage scope only exists inside createMcpHandler.
     const props = (ctx as ExecutionContext & { props?: Record<string, unknown> }).props;
     const apiKey = (props?.apiKey as string) || undefined;
-    let userId =
+    const propsUserId =
       props?.userId != null && String(props.userId).trim() !== ""
-        ? String(props.userId)
+        ? String(props.userId).trim()
         : undefined;
 
-    // Older OAuth grants stored a hash as userId — refresh from /users/me when needed
-    if (apiKey && (!userId || Number.isNaN(Number(userId)))) {
-      try {
-        const apiUrl = env.GETTRANSCRIBE_API_URL || "https://api.gettranscribe.ai";
-        const meRes = await fetch(`${apiUrl}/users/me`, {
-          headers: { Accept: "application/json", "x-api-key": apiKey },
-        });
-        if (meRes.ok) {
-          const me = (await meRes.json()) as { id?: number | string };
-          if (me?.id != null) userId = String(me.id);
-        }
-      } catch {
-        // Tool listing does not depend on this lookup. Execution still checks the API key.
-      }
-    }
+    // The OAuth grant's API key is the user who connected Claude/ChatGPT.
+    // Always resolve that user from /users/me so a stale or hashed props.userId
+    // cannot hide admin tools from user 1 or 2, or show them to anyone else.
+    const userId = await resolveOauthUserId(env, apiKey, propsUserId);
 
     const enrichedEnv: Env = {
       ...env,

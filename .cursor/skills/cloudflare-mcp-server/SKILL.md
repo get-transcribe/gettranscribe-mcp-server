@@ -251,9 +251,9 @@ The server uses `@cloudflare/workers-oauth-provider` wrapping the entire Worker.
 3. Client redirects user to `/authorize` → consent page
 4. User enters their `gtr_...` API key → verified against backend `GET /users/me` (returns numeric `id`)
 5. `completeAuthorization()` stores `apiKey` + numeric `userId` in encrypted `props`
-5b. `createServer` **always** registers admin tools so `tools/list` includes them. Claude and ChatGPT cannot call a tool that was never listed, and passing `api_key` in chat does not change `tools/list`. Execution still rejects anyone who is not user id `1` or `2`:
-   - SQL: `gettranscribe_describe_schema` / `gettranscribe_query_database` (proxied to backend `POST /mcp`; backend enforces user id 1 or 2 on the API key actually used, including an `api_key` argument)
-   - App Store Connect: `gettranscribe_appstore_connect_request` (Worker → Apple directly; re-checks `/users/me` for that same API key; JWT ES256 via `jose`)
+5b. `createServer` registers admin tools **only** when the OAuth connection user id is `1` or `2`. Claude and ChatGPT snapshot `tools/list` for that connection, so other users must not see these tools. Passing `api_key` in chat does not add them. On each MCP request the Worker resolves the grant's API key with `GET /users/me` (falls back to a numeric `props.userId` if that lookup fails):
+   - SQL: `gettranscribe_describe_schema` / `gettranscribe_query_database` (proxied to backend `POST /mcp`; backend also enforces user id 1 or 2)
+   - App Store Connect: `gettranscribe_appstore_connect_request` (Worker → Apple directly; re-checks `/users/me`; JWT ES256 via `jose`)
 6. Client exchanges auth code at `/token` → receives access + refresh tokens
 7. On every MCP request, `OAuthProvider` validates the token and passes `props` to the handler
 8. `getMcpAuthContext()` retrieves `props.apiKey` inside the MCP handler
@@ -327,7 +327,7 @@ If `workers.dev` shows "Inactive" in the dashboard, enable it via: Worker > Sett
 - Check `Accept` headers: clients must send `Accept: application/json, text/event-stream`
 - `GETTRANSCRIBE_API_KEY=gtr_... node examples/debug-oauth-flow.mjs` — replays the full OAuth flow + tools/list + a real tool call against production. Optional flags: `TEST_JOBS=1` (full async transcription job flow, costs credits) and `TEST_DOWNLOAD=1` (download_video tool, costs $0.01). Both accept `TEST_JOBS_URL` / `TEST_DOWNLOAD_URL` overrides.
 - Admin SQL local: start backend `:3031`, then `npx wrangler dev --var GETTRANSCRIBE_API_URL:http://localhost:3031 --port 8787`, then `ADMIN_API_KEY=gtr_... NON_ADMIN_API_KEY=gtr_... MCP_BASE_URL=http://localhost:8787 node examples/test-admin-sql-local.mjs`. Backend-only: `ADMIN_API_KEY=... NON_ADMIN_API_KEY=... node scripts/test-mcp-admin-sql.mjs` in `gettranscribe-backend`.
-- Admin tools (`gettranscribe_describe_schema`, `gettranscribe_query_database`, `gettranscribe_appstore_connect_request`) are always listed. Calls succeed only for user id `1` or `2`. SQL tools are rejected on backend `POST /mcp` for everyone else. ASC tool runs on the Worker (never returns JWT/PEM), re-checks `/users/me`, and only calls `https://api.appstoreconnect.apple.com` with relative `/v1/…` paths. Do not hide these tools behind `MCP_USER_ID` or an env flag: clients that already connected will not see a tool that `tools/list` omits.
+- Admin tools (`gettranscribe_describe_schema`, `gettranscribe_query_database`, `gettranscribe_appstore_connect_request`) are listed only when the OAuth API key belongs to user id `1` or `2`. Everyone else gets `tools/list` without them. SQL tools are also rejected on backend `POST /mcp` for non-admins. ASC tool runs on the Worker (never returns JWT/PEM), re-checks `/users/me`, and only calls `https://api.appstoreconnect.apple.com` with relative `/v1/…` paths. Do not register these tools for every session: non-admin Claude/ChatGPT connectors must not see them.
 
 ### Admin App Store Connect tool
 
