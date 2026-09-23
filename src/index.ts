@@ -5,10 +5,7 @@ import { registerTranscriptionTools } from "./tools/transcriptions.js";
 import { registerJobTools } from "./tools/jobs.js";
 import { registerFolderTools } from "./tools/folders.js";
 import { registerDownloadTools } from "./tools/downloads.js";
-import {
-  isMcpAdminUserId,
-  registerAdminSqlTools,
-} from "./tools/admin-sql.js";
+import { registerAdminSqlTools } from "./tools/admin-sql.js";
 import { registerAdminAppStoreConnectTools } from "./tools/admin-appstore-connect.js";
 import {
   BRAND,
@@ -81,11 +78,12 @@ function createServer(env: Env, publicOrigin: string) {
   registerFolderTools(server, env);
   registerDownloadTools(server, env);
 
-  // Admin tools only appear in tools/list for user id 1 or 2
-  if (isMcpAdminUserId(env.MCP_USER_ID)) {
-    registerAdminSqlTools(server, env);
-    registerAdminAppStoreConnectTools(server, env);
-  }
+  // Always list admin tools. Claude and ChatGPT only know tools returned by
+  // tools/list, so hiding them unless the OAuth session user id is 1 or 2 made
+  // the tools disappear even when the caller passed an admin API key.
+  // Execution still rejects anyone who is not user id 1 or 2.
+  registerAdminSqlTools(server, env);
+  registerAdminAppStoreConnectTools(server, env);
 
   return server;
 }
@@ -431,7 +429,7 @@ const mcpHandler = {
           if (me?.id != null) userId = String(me.id);
         }
       } catch {
-        // Keep non-admin tool set if lookup fails
+        // Tool listing does not depend on this lookup. Execution still checks the API key.
       }
     }
 
