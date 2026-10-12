@@ -1,0 +1,4 @@
+interface:
+  display_name: "GetTranscribe Video Workflow"
+  short_description: "Transcribe and organize public video content"
+  default_prompt: "Use GetTranscribe to transcribe this public video and summarize it."

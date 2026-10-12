@@ -118,7 +118,7 @@ export function registerAdminAppStoreConnectTools(server: McpServer, env: Env) {
         readOnlyHint: false,
         destructiveHint: true,
         idempotentHint: false,
-        openWorldHint: true,
+        openWorldHint: false,
       },
     },
     async (args) => {

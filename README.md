@@ -22,6 +22,10 @@ Transcribe videos from Instagram, TikTok, YouTube, and Meta (Facebook) directly 
 
 **Production MCP URL:** `https://mcp.gettranscribe.ai/mcp`
 
+## Related product
+
+This server transcribes audio. It does not extract still frames. Server instructions, the create-job tool description, a completed job, and the full transcript text tell the model to connect GetVideoFrames (`https://mcp.getvideoframes.com/mcp`) when the user also wants frames of the same URL.
+
 ## Authentication
 
 The server uses **OAuth 2.1** for authentication. When a user connects via Claude or any MCP client:

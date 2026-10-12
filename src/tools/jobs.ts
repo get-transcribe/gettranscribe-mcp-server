@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { COMPLETED_TRANSCRIPT_FRAMES_NOTE, CREATE_JOB_FRAMES_NOTE } from "../branding/assets.js";
 import type { Env } from "../index.js";
 import {
   apiRequest,
@@ -81,6 +82,11 @@ function formatJobMarkdown(job: TranscriptionJobResponse): string {
       break;
   }
 
+  if (job.status === "completed") {
+    lines.push("");
+    lines.push(COMPLETED_TRANSCRIPT_FRAMES_NOTE);
+  }
+
   return lines.join("\n");
 }
 
@@ -90,7 +96,7 @@ function noApiKeyError() {
     content: [
       {
         type: "text" as const,
-        text: "Error: API key required. Provide api_key parameter or set GETTRANSCRIBE_API_KEY secret.",
+        text: "Error: Connect your GetTranscribe account before using this tool.",
       },
     ],
   };
@@ -108,12 +114,13 @@ The create response includes wait guidance from historical duration percentiles 
 Workflow:
 1. Call this tool with the video URL → returns job_id with status "pending" plus wait guidance.
 2. Wait suggested_first_poll_after_seconds, then poll gettranscribe_get_transcription_job every suggested_poll_interval_seconds until status is "completed" (or failed).
-3. When completed, fetch the full transcript with gettranscribe_get_transcription using the returned transcription_id.`,
+3. When completed, fetch the full transcript with gettranscribe_get_transcription using the returned transcription_id.
+
+${CREATE_JOB_FRAMES_NOTE}`,
       inputSchema: {
-        url: z.string().url().describe("Full video URL from a supported platform"),
-        api_key: z.string().optional().describe("Your GetTranscribe API key (gtr_...). Not needed if already configured via Authorization header"),
+        url: z.string().url().describe("Full public video URL from a supported platform"),
         folder_id: z.number().int().optional().describe("Folder ID to organize the transcription into"),
-        prompt: z.string().optional().describe("Custom prompt to guide the transcription"),
+        prompt: z.string().optional().describe("Optional vocabulary hint for names spoken in the video. Do not include health, government ID, or payment data."),
         language: z.string().max(5).optional().describe("Target language code (e.g., 'en', 'es', 'fr')"),
       },
       annotations: {
@@ -125,7 +132,7 @@ Workflow:
     },
     async (args) => {
       try {
-        const apiKey = resolveApiKey(env, args.api_key);
+        const apiKey = resolveApiKey(env);
         if (!apiKey) return noApiKeyError();
 
         const result = await apiRequest<{ content: { type: string; text: string }[] }>(
@@ -184,18 +191,17 @@ Statuses:
 - "failed": error_message explains what went wrong.`,
       inputSchema: {
         job_id: z.number().int().positive().describe("The numeric ID of the transcription job to check"),
-        api_key: z.string().optional().describe("Your GetTranscribe API key (gtr_...). Not needed if already configured via Authorization header"),
       },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: true,
-        openWorldHint: true,
+        openWorldHint: false,
       },
     },
     async (args) => {
       try {
-        const apiKey = resolveApiKey(env, args.api_key);
+        const apiKey = resolveApiKey(env);
         if (!apiKey) return noApiKeyError();
 
         const result = await apiRequest<{ content: { type: string; text: string }[] }>(

@@ -106,7 +106,7 @@ function noApiKeyError() {
     content: [
       {
         type: "text" as const,
-        text: "Error: API key required. Provide api_key parameter or set GETTRANSCRIBE_API_KEY secret.",
+        text: "Error: Connect your GetTranscribe account before using this tool.",
       },
     ],
   };
@@ -120,19 +120,18 @@ export function registerFolderTools(server: McpServer, env: Env) {
       description: `Create a new folder to organize your transcriptions. Folders can be nested by specifying a parent_id.`,
       inputSchema: {
         name: z.string().min(1).max(255).describe("Name for the new folder"),
-        api_key: z.string().optional().describe("Your GetTranscribe API key (gtr_...). Not needed if already configured via Authorization header"),
         parent_id: z.number().int().optional().describe("Parent folder ID for nested folder structure"),
       },
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
         idempotentHint: false,
-        openWorldHint: true,
+        openWorldHint: false,
       },
     },
     async (args) => {
       try {
-        const apiKey = resolveApiKey(env, args.api_key);
+        const apiKey = resolveApiKey(env);
         if (!apiKey) return noApiKeyError();
 
         const result = await apiRequest<{ content: { type: string; text: string }[] }>(
@@ -181,18 +180,17 @@ export function registerFolderTools(server: McpServer, env: Env) {
       description: `Retrieve a specific folder by ID, including its subfolders and transcriptions.`,
       inputSchema: {
         folder_id: z.number().int().positive().describe("The numeric ID of the folder to retrieve"),
-        api_key: z.string().optional().describe("Your GetTranscribe API key (gtr_...). Not needed if already configured via Authorization header"),
       },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: true,
-        openWorldHint: true,
+        openWorldHint: false,
       },
     },
     async (args) => {
       try {
-        const apiKey = resolveApiKey(env, args.api_key);
+        const apiKey = resolveApiKey(env);
         if (!apiKey) return noApiKeyError();
 
         const result = await apiRequest<{ content: { type: string; text: string }[] }>(
@@ -240,7 +238,6 @@ export function registerFolderTools(server: McpServer, env: Env) {
       title: "List Folders",
       description: `List your transcription folders with optional filtering and pagination. Filter by parent_id to get subfolders of a specific folder.`,
       inputSchema: {
-        api_key: z.string().optional().describe("Your GetTranscribe API key (gtr_...). Not needed if already configured via Authorization header"),
         parent_id: z.number().int().optional().describe("Filter by parent folder ID. Omit to list root folders"),
         limit: z.number().int().min(1).max(50).default(10).describe("Results per page (default: 10, max: 50)"),
         skip: z.number().int().min(0).default(0).describe("Number of results to skip for pagination"),
@@ -249,12 +246,12 @@ export function registerFolderTools(server: McpServer, env: Env) {
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: true,
-        openWorldHint: true,
+        openWorldHint: false,
       },
     },
     async (args) => {
       try {
-        const apiKey = resolveApiKey(env, args.api_key);
+        const apiKey = resolveApiKey(env);
         if (!apiKey) return noApiKeyError();
 
         const toolArgs: Record<string, unknown> = {

@@ -9,6 +9,7 @@ import { isMcpAdminUserId, registerAdminSqlTools } from "./tools/admin-sql.js";
 import { registerAdminAppStoreConnectTools } from "./tools/admin-appstore-connect.js";
 import {
   BRAND,
+  SERVER_INSTRUCTIONS,
   buildServerIcons,
   enrichOAuthMetadata,
   getPublicOrigin,
@@ -24,6 +25,8 @@ export interface Env {
   OAUTH_KV: KVNamespace;
   OAUTH_PROVIDER: OAuthHelpers;
   COOKIE_SECRET?: string;
+  /** OpenAI Plugins Directory domain-verification token. */
+  OPENAI_APPS_CHALLENGE_TOKEN?: string;
   /** App Store Connect API Key ID (e.g. 6849KG244P). Admin tools only. */
   APPLE_APPSTORE_CONNECT_API_KEY?: string;
   /** App Store Connect Issuer ID (UUID). Admin tools only. */
@@ -64,14 +67,17 @@ interface CompleteAuthParams {
 
 function createServer(env: Env, publicOrigin: string) {
   // SEP-973 / MCP 2025-11-25 Implementation metadata (icons, title, websiteUrl)
-  const server = new McpServer({
-    name: BRAND.name,
-    title: BRAND.title,
-    version: BRAND.version,
-    description: BRAND.description,
-    websiteUrl: BRAND.websiteUrl,
-    icons: buildServerIcons(publicOrigin),
-  });
+  const server = new McpServer(
+    {
+      name: BRAND.name,
+      title: BRAND.title,
+      version: BRAND.version,
+      description: BRAND.description,
+      websiteUrl: BRAND.websiteUrl,
+      icons: buildServerIcons(publicOrigin),
+    },
+    { instructions: SERVER_INSTRUCTIONS }
+  );
 
   registerTranscriptionTools(server, env);
   registerJobTools(server, env);
@@ -495,7 +501,10 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const publicRequest = withPublicOrigin(request);
 
-    const branding = handleBrandingRequest(publicRequest);
+    const branding = handleBrandingRequest(
+      publicRequest,
+      env.OPENAI_APPS_CHALLENGE_TOKEN
+    );
     if (branding) return branding;
 
     const response = await oauthProvider.fetch(publicRequest, env, ctx);

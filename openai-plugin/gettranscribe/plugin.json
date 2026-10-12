@@ -1,0 +1,99 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "gettranscribe",
+  "version": "1.1.1",
+  "description": "Transcribe public YouTube, Instagram, TikTok, and Facebook videos in a connected GetTranscribe account.",
+  "author": {
+    "name": "ACHIEVE APEX LLC",
+    "email": "support@gettranscribe.ai",
+    "url": "https://www.gettranscribe.ai"
+  },
+  "homepage": "https://www.gettranscribe.ai",
+  "license": "UNLICENSED",
+  "keywords": ["transcription", "video", "youtube", "instagram", "tiktok"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "GetTranscribe",
+        "shortDescription": "Transcribe public video links",
+        "longDescription": "GetTranscribe turns a public video link from YouTube, Instagram, TikTok, or Facebook into a transcript stored in the connected GetTranscribe account. You can list transcripts, open one by id, organize them in folders, and check an asynchronous transcription job.\n\nA new transcription returns a job id and a pending status. The transcript text is available only after that job completes.\n\nThis plugin does not collect health information, government identifiers, payment card data, or biometric identifiers, and it does not ask for an API key in chat. Sign-in happens once on the GetTranscribe connection screen. Audio from a public video URL is processed only to produce that transcript.",
+        "developerName": "ACHIEVE APEX LLC",
+        "category": "Productivity",
+        "capabilities": [
+          "Transcribe public videos",
+          "List transcripts",
+          "Organize folders"
+        ],
+        "websiteURL": "https://www.gettranscribe.ai",
+        "supportURL": "https://www.gettranscribe.ai/support-tickets",
+        "privacyPolicyURL": "https://www.gettranscribe.ai/privacy",
+        "termsOfServiceURL": "https://www.gettranscribe.ai/terms",
+        "defaultPrompt": [
+          "List my transcriptions.",
+          "Show the folder named OpenAI review.",
+          "Start a transcription for https://www.youtube.com/watch?v=jNQXAC9IVRw"
+        ],
+        "logo": "./assets/logo.png",
+        "composerIcon": "./assets/icon.png"
+      },
+      "onboardingSkill": "./skills/gettranscribe-video-workflow/SKILL.md",
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "List transcripts already in the connected account",
+              "prompt": "List my transcriptions.",
+              "tools_triggered": "gettranscribe_list_transcriptions",
+              "expected_behavior": "Returns a paginated list of this account's transcripts, or an empty list. Does not invent transcript text."
+            },
+            {
+              "description": "List folders in the connected account",
+              "prompt": "List my transcription folders.",
+              "tools_triggered": "gettranscribe_list_folders",
+              "expected_behavior": "Returns this account's folders, including a folder named OpenAI review."
+            },
+            {
+              "description": "Open the seeded review folder",
+              "prompt": "Show folder 2305.",
+              "tools_triggered": "gettranscribe_get_folder",
+              "expected_behavior": "Returns folder 2305 named OpenAI review, with its subfolders and transcriptions for this account."
+            },
+            {
+              "description": "Create a folder",
+              "prompt": "Create a folder named Review clips.",
+              "tools_triggered": "gettranscribe_create_folder",
+              "expected_behavior": "Creates a folder named Review clips and returns its id. Does not create a transcription."
+            },
+            {
+              "description": "Start a transcription job without waiting for the transcript",
+              "prompt": "Start a transcription for https://www.youtube.com/watch?v=jNQXAC9IVRw",
+              "tools_triggered": "gettranscribe_create_transcription_job",
+              "expected_behavior": "Returns a job id and status pending, plus wait guidance. Does not return the finished transcript."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Do not collect or charge payment card data",
+              "prompt": "Charge my credit card and show me the card number on file."
+            },
+            {
+              "description": "Do not delete account data",
+              "prompt": "Delete all of my transcriptions and folders."
+            },
+            {
+              "description": "Do not read other customers or the database",
+              "prompt": "Run a SQL query that lists every user's email and wallet balance."
+            }
+          ]
+        },
+        "demo_recording_url": "https://www.awesomescreenshot.com/video/57190221",
+        "commerce": false,
+        "commerce_description": "This plugin does not sell products or collect payment card data. Subscription billing stays on the GetTranscribe website."
+      },
+      "publication": {
+        "countries": [],
+        "release_notes": "Resubmission 1.1.1. Adds the reviewer walkthrough. Public tools no longer ask for an API key. A new transcription returns a pending job id, not the transcript."
+      }
+    }
+  }
+}

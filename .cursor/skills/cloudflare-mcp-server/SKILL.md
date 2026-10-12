@@ -347,6 +347,21 @@ Sales/finance reports return `application/a-gzip` (not JSON). `asc-client.ts` ac
 
 Implementation: `src/tools/admin-appstore-connect.ts` + `src/services/asc-client.ts`.
 
+## Sibling product (GetVideoFrames)
+
+The model learns about GetVideoFrames from these surfaces. Keep the copy as a capability boundary: transcripts only, and point at GetVideoFrames when the user also wants frames, a storyboard, or still images. Do not add it to list, folders, download, admin tools, or the OpenAI plugin long description in `openai-plugin/gettranscribe/plugin.json`.
+
+| Surface | Where |
+| --- | --- |
+| MCP `initialize` instructions | `SERVER_INSTRUCTIONS` in `src/branding/assets.ts`, passed as the second argument to `McpServer` |
+| `gettranscribe_create_transcription_job` description | `CREATE_JOB_FRAMES_NOTE` |
+| Text of a job with status `completed` | `COMPLETED_TRANSCRIPT_FRAMES_NOTE` in `formatJobMarkdown` |
+| Full transcript text | same note at the end of `formatTranscriptionMarkdown` |
+| ChatGPT app skill | `openai-plugin/gettranscribe/skills/gettranscribe-video-workflow/SKILL.md` and `marketplace-assets/gettranscribe-video-workflow/SKILL.md` |
+
+- MCP: `https://mcp.getvideoframes.com/mcp`
+- Site: `https://getvideoframes.com`
+
 ## Important Constraints
 
 1. **No Node.js APIs** — Workers use V8 runtime, not Node.js. Use `fetch` instead of `axios`, `crypto` via Web Crypto API, etc.
@@ -354,6 +369,6 @@ Implementation: `src/tools/admin-appstore-connect.ts` + `src/services/asc-client
 3. **Zod v4** — this project uses Zod v4, not v3. Import is the same (`import { z } from "zod"`)
 4. **structuredContent type** — must be `Record<string, unknown>` (include `[x: string]: unknown` in custom interfaces if needed)
 5. **CHARACTER_LIMIT** — truncate Markdown responses exceeding 25000 chars
-6. **All tools must accept `api_key`** as optional param for per-request override (OAuth provides the default)
+6. **Public tool schemas must not include `api_key`.** OAuth stores the key and `resolveApiKey(env)` reads it. Asking for `gtr_...` in a tool input is what OpenAI rejects as soliciting credentials. Admin-only tools may still accept `api_key` because they are not registered for the reviewer account.
 7. **OAuthProvider is the default export** — it wraps the entire Worker, not `ExportedHandler`
 8. **`getMcpAuthContext()`** — use this inside MCP tool handlers to get the authenticated user's `props` (contains `apiKey` and `userId`)

@@ -82,7 +82,7 @@ export function registerAdminSqlTools(server: McpServer, env: Env) {
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: true,
-        openWorldHint: true,
+        openWorldHint: false,
       },
     },
     async (args) => {
@@ -154,7 +154,7 @@ export function registerAdminSqlTools(server: McpServer, env: Env) {
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: true,
-        openWorldHint: true,
+        openWorldHint: false,
       },
     },
     async (args) => {

@@ -44,7 +44,7 @@ function noApiKeyError() {
     content: [
       {
         type: "text" as const,
-        text: "Error: API key required. Provide api_key parameter or set GETTRANSCRIBE_API_KEY secret.",
+        text: "Error: Connect your GetTranscribe account before using this tool.",
       },
     ],
   };
@@ -55,17 +55,15 @@ export function registerDownloadTools(server: McpServer, env: Env) {
     "gettranscribe_download_video",
     {
       title: "Download Video",
-      description: `Resolve a fresh, direct download URL (video file) for a video from a supported platform: Instagram, TikTok, YouTube, Facebook, Twitter/X, Pinterest, Google Drive, or a direct video URL.
+      description: `Resolve a fresh, direct download URL (video file) for a public video from a supported platform: Instagram, TikTok, YouTube, Facebook, Twitter/X, Pinterest, Google Drive, or a direct video URL.
 
 Returns a temporary CDN link to the video file plus a thumbnail when available. The link expires within minutes, so download the file right away and call this tool again if you need a new link.
 
 Notes:
 - This does NOT create a transcription. Use gettranscribe_create_transcription_job to transcribe.
-- Each call debits a small amount ($0.01) from the user's GetTranscribe wallet balance.
-- Each call resolves a fresh URL, so repeated calls for the same video are billed separately.`,
+- This does not collect payment card data. Call it only when the user explicitly asks for a video file.`,
       inputSchema: {
-        url: z.string().url().describe("Full video URL from a supported platform (Instagram, TikTok, YouTube, Facebook, Twitter/X, Pinterest, Google Drive, or direct video URL)"),
-        api_key: z.string().optional().describe("Your GetTranscribe API key (gtr_...). Not needed if already configured via Authorization header"),
+        url: z.string().url().describe("Full public video URL from a supported platform (Instagram, TikTok, YouTube, Facebook, Twitter/X, Pinterest, Google Drive, or direct video URL)"),
       },
       annotations: {
         readOnlyHint: false,
@@ -76,7 +74,7 @@ Notes:
     },
     async (args) => {
       try {
-        const apiKey = resolveApiKey(env, args.api_key);
+        const apiKey = resolveApiKey(env);
         if (!apiKey) return noApiKeyError();
 
         // Unlike other tools, this calls the download-video REST service directly:

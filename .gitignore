@@ -80,3 +80,7 @@ npm-debug.log
 tmp/
 temp/
 web/dist/component.js
+
+# Submission zips rebuilt from marketplace-assets/ and openai-plugin/ source
+marketplace-assets/*.zip
+openai-plugin/*.zip

@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { COMPLETED_TRANSCRIPT_FRAMES_NOTE } from "../branding/assets.js";
 import type { Env } from "../index.js";
 import {
   apiRequest,
@@ -66,6 +67,8 @@ function formatTranscriptionMarkdown(t: TranscriptionResponse): string {
     lines.push("");
     lines.push(t.transcription);
   }
+  lines.push("");
+  lines.push(COMPLETED_TRANSCRIPT_FRAMES_NOTE);
   return lines.join("\n");
 }
 
@@ -118,7 +121,7 @@ function noApiKeyError() {
     content: [
       {
         type: "text" as const,
-        text: "Error: API key required. Provide api_key parameter or set GETTRANSCRIBE_API_KEY secret.",
+        text: "Error: Connect your GetTranscribe account before using this tool.",
       },
     ],
   };
@@ -132,18 +135,17 @@ export function registerTranscriptionTools(server: McpServer, env: Env) {
       description: `Retrieve a specific transcription by its ID. Returns full transcription details including the transcribed text, video metadata, platform info, and timestamps.`,
       inputSchema: {
         transcription_id: z.number().int().positive().describe("The numeric ID of the transcription to retrieve"),
-        api_key: z.string().optional().describe("Your GetTranscribe API key (gtr_...). Not needed if already configured via Authorization header"),
       },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: true,
-        openWorldHint: true,
+        openWorldHint: false,
       },
     },
     async (args) => {
       try {
-        const apiKey = resolveApiKey(env, args.api_key);
+        const apiKey = resolveApiKey(env);
         if (!apiKey) return noApiKeyError();
 
         const result = await apiRequest<{ content: { type: string; text: string }[] }>(
@@ -191,7 +193,6 @@ export function registerTranscriptionTools(server: McpServer, env: Env) {
       title: "List Transcriptions",
       description: `List your transcriptions with optional filtering by folder or platform, and pagination support. Returns a paginated list of transcriptions with metadata.`,
       inputSchema: {
-        api_key: z.string().optional().describe("Your GetTranscribe API key (gtr_...). Not needed if already configured via Authorization header"),
         folder_id: z.number().int().optional().describe("Filter by folder ID. Omit to list all transcriptions"),
         platform: z.enum(["instagram", "tiktok", "youtube", "meta"]).optional().describe("Filter by platform"),
         limit: z.number().int().min(1).max(50).default(10).describe("Results per page (default: 10, max: 50)"),
@@ -201,12 +202,12 @@ export function registerTranscriptionTools(server: McpServer, env: Env) {
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: true,
-        openWorldHint: true,
+        openWorldHint: false,
       },
     },
     async (args) => {
       try {
-        const apiKey = resolveApiKey(env, args.api_key);
+        const apiKey = resolveApiKey(env);
         if (!apiKey) return noApiKeyError();
 
         const toolArgs: Record<string, unknown> = {
