@@ -123,6 +123,7 @@ export function registerFolderTools(server: McpServer, env: Env) {
         parent_id: z.number().int().optional().describe("Parent folder ID for nested folder structure"),
       },
       annotations: {
+        title: "Create Folder",
         readOnlyHint: false,
         destructiveHint: false,
         idempotentHint: false,
@@ -182,6 +183,7 @@ export function registerFolderTools(server: McpServer, env: Env) {
         folder_id: z.number().int().positive().describe("The numeric ID of the folder to retrieve"),
       },
       annotations: {
+        title: "Get Folder",
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: true,
@@ -243,6 +245,7 @@ export function registerFolderTools(server: McpServer, env: Env) {
         skip: z.number().int().min(0).default(0).describe("Number of results to skip for pagination"),
       },
       annotations: {
+        title: "List Folders",
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: true,

@@ -137,6 +137,7 @@ export function registerTranscriptionTools(server: McpServer, env: Env) {
         transcription_id: z.number().int().positive().describe("The numeric ID of the transcription to retrieve"),
       },
       annotations: {
+        title: "Get Transcription",
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: true,
@@ -199,6 +200,7 @@ export function registerTranscriptionTools(server: McpServer, env: Env) {
         skip: z.number().int().min(0).default(0).describe("Number of results to skip for pagination"),
       },
       annotations: {
+        title: "List Transcriptions",
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: true,

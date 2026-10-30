@@ -66,6 +66,7 @@ Notes:
         url: z.string().url().describe("Full public video URL from a supported platform (Instagram, TikTok, YouTube, Facebook, Twitter/X, Pinterest, Google Drive, or direct video URL)"),
       },
       annotations: {
+        title: "Download Video",
         readOnlyHint: false,
         destructiveHint: false,
         idempotentHint: false,

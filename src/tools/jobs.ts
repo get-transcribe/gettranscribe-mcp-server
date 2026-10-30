@@ -124,6 +124,7 @@ ${CREATE_JOB_FRAMES_NOTE}`,
         language: z.string().max(5).optional().describe("Target language code (e.g., 'en', 'es', 'fr')"),
       },
       annotations: {
+        title: "Create Transcription Job",
         readOnlyHint: false,
         destructiveHint: false,
         idempotentHint: false,
@@ -193,6 +194,7 @@ Statuses:
         job_id: z.number().int().positive().describe("The numeric ID of the transcription job to check"),
       },
       annotations: {
+        title: "Get Transcription Job Status",
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: true,

@@ -115,6 +115,7 @@ export function registerAdminAppStoreConnectTools(server: McpServer, env: Env) {
           ),
       },
       annotations: {
+        title: "App Store Connect API Request",
         readOnlyHint: false,
         destructiveHint: true,
         idempotentHint: false,

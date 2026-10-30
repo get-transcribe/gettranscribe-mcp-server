@@ -79,6 +79,7 @@ export function registerAdminSqlTools(server: McpServer, env: Env) {
           ),
       },
       annotations: {
+        title: "Describe Database Schema",
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: true,
@@ -151,6 +152,7 @@ export function registerAdminSqlTools(server: McpServer, env: Env) {
           ),
       },
       annotations: {
+        title: "Query Database (Read-Only)",
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: true,
